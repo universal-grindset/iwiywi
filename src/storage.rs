@@ -32,7 +32,6 @@ pub fn read_readings() -> Result<Vec<ClassifiedReading>> {
 mod tests {
     use super::*;
     use crate::models::ClassifiedReading;
-    use std::env;
 
     fn fixture() -> ClassifiedReading {
         ClassifiedReading {
@@ -47,15 +46,12 @@ mod tests {
 
     #[test]
     fn write_then_read_round_trips() {
-        // Use a temp dir to avoid clobbering real data
-        let tmp = env::temp_dir().join("iwiywi_test");
-        fs::create_dir_all(&tmp).unwrap();
-        let path = tmp.join("readings-test.json");
         let readings = vec![fixture()];
-        let json = serde_json::to_string_pretty(&readings).unwrap();
-        fs::write(&path, &json).unwrap();
-        let back: Vec<ClassifiedReading> = serde_json::from_str(&json).unwrap();
+        // Call actual module functions
+        write_readings(&readings).expect("write failed");
+        let back = read_readings().expect("read failed");
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].step, 7);
+        assert_eq!(back[0].source, "Test");
     }
 }
