@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
             fetch::run(&cfg).await?;
         }
         Some(Commands::Install) => {
-            anyhow::bail!("install not yet implemented — coming in next release");
+            install::run()?;
         }
         None => {
             crate::tui::run()?;
