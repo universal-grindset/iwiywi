@@ -1,0 +1,57 @@
+<h2>TUI Reading Block</h2>
+<p class="subtitle">Box-drawing characters for the reading cards — which border style fits?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'Courier New',monospace;font-size:12px;line-height:1.5;border-radius:6px;min-height:160px">
+      <div style="color:#58a6ff">┌─ Step 3 · AA.org ─────────────────────┐</div>
+      <div style="color:#c9d1d9">│ "Made a decision to turn our will and  │</div>
+      <div style="color:#c9d1d9">│  our lives over to the care of God..." │</div>
+      <div style="color:#58a6ff">└────────────────────────────────────────┘</div>
+      <div style="margin-top:8px;color:#3fb950">┌─ Step 7 · Hazeldon ───────────────────┐</div>
+      <div style="color:#c9d1d9">│ "Humbly asked Him to remove our        │</div>
+      <div style="color:#c9d1d9">│  shortcomings..."                       │</div>
+      <div style="color:#3fb950">└────────────────────────────────────────┘</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Single-line border, colored per step</h3>
+      <p>Clean, classic terminal look. Step number colors the entire border.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'Courier New',monospace;font-size:12px;line-height:1.5;border-radius:6px;min-height:160px">
+      <div style="color:#58a6ff">╔═ Step 3 · AA.org ═════════════════════╗</div>
+      <div style="color:#c9d1d9">║ "Made a decision to turn our will and  ║</div>
+      <div style="color:#c9d1d9">║  our lives over to the care of God..." ║</div>
+      <div style="color:#58a6ff">╚════════════════════════════════════════╝</div>
+      <div style="margin-top:8px;color:#3fb950">╔═ Step 7 · Hazeldon ═══════════════════╗</div>
+      <div style="color:#c9d1d9">║ "Humbly asked Him to remove our        ║</div>
+      <div style="color:#c9d1d9">║  shortcomings..."                       ║</div>
+      <div style="color:#3fb950">╚════════════════════════════════════════╝</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Double-line border, colored per step</h3>
+      <p>Heavier, more defined. Each card feels more distinct.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'Courier New',monospace;font-size:12px;line-height:1.5;border-radius:6px;min-height:160px">
+      <div style="color:#58a6ff">▌ Step 3 · AA.org</div>
+      <div style="color:#c9d1d9">  "Made a decision to turn our will and</div>
+      <div style="color:#c9d1d9">   our lives over to the care of God..."</div>
+      <div style="color:#1e293b">  ────────────────────────────────────</div>
+      <div style="margin-top:6px;color:#3fb950">▌ Step 7 · Hazeldon</div>
+      <div style="color:#c9d1d9">  "Humbly asked Him to remove our</div>
+      <div style="color:#c9d1d9">   shortcomings..."</div>
+      <div style="color:#1e293b">  ────────────────────────────────────</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Left accent bar, no full box</h3>
+      <p>Minimal. Colored bar on the left marks the step, divider separates entries. More content fits on screen.</p>
+    </div>
+  </div>
+
+</div>

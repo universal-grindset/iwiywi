@@ -1,0 +1,61 @@
+<h2>TUI Reading Block</h2>
+<p class="subtitle">Which border style? Each step gets its own color.</p>
+
+<div style="display:flex;flex-direction:column;gap:24px;max-width:700px;margin:0 auto">
+
+  <!-- Option A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="display:block;padding:0;overflow:hidden;border-radius:10px">
+    <div style="background:#0d1117;padding:20px 24px;font-family:monospace;font-size:14px;line-height:1.8;white-space:pre;overflow:hidden">
+<span style="color:#58a6ff">┌─ Step 3 · AA.org ─────────────────────────────────┐</span>
+<span style="color:#e6edf3">│  "Made a decision to turn our will and our lives  │</span>
+<span style="color:#e6edf3">│   over to the care of God as we understood Him."  │</span>
+<span style="color:#58a6ff">└────────────────────────────────────────────────────┘</span>
+
+<span style="color:#3fb950">┌─ Step 7 · Hazeldon Betty Ford ────────────────────┐</span>
+<span style="color:#e6edf3">│  "Humbly asked Him to remove our shortcomings."   │</span>
+<span style="color:#3fb950">└────────────────────────────────────────────────────┘</span>
+
+<span style="color:#d29922">┌─ Step 1 · AA Happy Hour ──────────────────────────┐</span>
+<span style="color:#e6edf3">│  "We admitted we were powerless over alcohol —    │</span>
+<span style="color:#e6edf3">│   that our lives had become unmanageable."        │</span>
+<span style="color:#d29922">└────────────────────────────────────────────────────┘</span></div>
+    <div style="background:#161b22;padding:12px 20px;color:#8b949e;font-size:13px"><strong style="color:#e6edf3">A — Single border, step color</strong> — Clean, classic terminal look</div>
+  </div>
+
+  <!-- Option B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)" style="display:block;padding:0;overflow:hidden;border-radius:10px">
+    <div style="background:#0d1117;padding:20px 24px;font-family:monospace;font-size:14px;line-height:1.8;white-space:pre;overflow:hidden">
+<span style="color:#58a6ff">╔═ Step 3 · AA.org ══════════════════════════════════╗</span>
+<span style="color:#e6edf3">║  "Made a decision to turn our will and our lives  ║</span>
+<span style="color:#e6edf3">║   over to the care of God as we understood Him."  ║</span>
+<span style="color:#58a6ff">╚════════════════════════════════════════════════════╝</span>
+
+<span style="color:#3fb950">╔═ Step 7 · Hazeldon Betty Ford ═════════════════════╗</span>
+<span style="color:#e6edf3">║  "Humbly asked Him to remove our shortcomings."   ║</span>
+<span style="color:#3fb950">╚════════════════════════════════════════════════════╝</span>
+
+<span style="color:#d29922">╔═ Step 1 · AA Happy Hour ═══════════════════════════╗</span>
+<span style="color:#e6edf3">║  "We admitted we were powerless over alcohol —    ║</span>
+<span style="color:#e6edf3">║   that our lives had become unmanageable."        ║</span>
+<span style="color:#d29922">╚════════════════════════════════════════════════════╝</span></div>
+    <div style="background:#161b22;padding:12px 20px;color:#8b949e;font-size:13px"><strong style="color:#e6edf3">B — Double border, step color</strong> — Heavier, more defined</div>
+  </div>
+
+  <!-- Option C -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)" style="display:block;padding:0;overflow:hidden;border-radius:10px">
+    <div style="background:#0d1117;padding:20px 24px;font-family:monospace;font-size:14px;line-height:1.8;white-space:pre;overflow:hidden">
+<span style="color:#58a6ff">▌</span><span style="color:#8b949e"> Step 3 · AA.org</span>
+<span style="color:#e6edf3">  "Made a decision to turn our will and our lives</span>
+<span style="color:#e6edf3">   over to the care of God as we understood Him."</span>
+<span style="color:#21262d">  ─────────────────────────────────────────────────</span>
+<span style="color:#3fb950">▌</span><span style="color:#8b949e"> Step 7 · Hazeldon Betty Ford</span>
+<span style="color:#e6edf3">  "Humbly asked Him to remove our shortcomings."</span>
+<span style="color:#21262d">  ─────────────────────────────────────────────────</span>
+<span style="color:#d29922">▌</span><span style="color:#8b949e"> Step 1 · AA Happy Hour</span>
+<span style="color:#e6edf3">  "We admitted we were powerless over alcohol —</span>
+<span style="color:#e6edf3">   that our lives had become unmanageable."</span>
+<span style="color:#21262d">  ─────────────────────────────────────────────────</span></div>
+    <div style="background:#161b22;padding:12px 20px;color:#8b949e;font-size:13px"><strong style="color:#e6edf3">C — Left accent bar, no box</strong> — Minimal, more content fits</div>
+  </div>
+
+</div>

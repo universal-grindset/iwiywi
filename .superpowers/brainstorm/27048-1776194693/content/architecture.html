@@ -1,0 +1,40 @@
+<h2>Where does iwiywi live?</h2>
+<p class="subtitle">This shapes everything — scraping, AI calls, mobile delivery, and storage all depend on this choice.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Fully Local CLI</h3>
+      <p>Runs entirely on your Mac. Scrapes sources on demand, calls Claude API for step classification, stores readings in a local SQLite DB. QR code opens a tiny local web server on your phone (same Wi-Fi). No backend to maintain.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Simple — no server costs</li><li>Private data</li><li>Works offline after first fetch</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mac must be on &amp; running for phone QR to work</li><li>No sync across devices</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>CLI + Hosted Backend</h3>
+      <p>CLI is the interface on your Mac, but a lightweight server (e.g. on Hetzner or Fly.io) runs the daily scrape + AI classification job. Readings served from the cloud — QR works anywhere, not just on Wi-Fi.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>QR works on cellular</li><li>Always-on — no Mac dependency</li><li>Could share with others in your group</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Server to maintain</li><li>Small ongoing cost</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Local CLI, Cloud Sync (Hybrid)</h3>
+      <p>CLI runs locally and does the scraping/AI work, but syncs today's readings to a free Cloudflare Worker / GitHub Pages / Gist. QR points to that public URL — phone works anywhere without maintaining a full server.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No server to run 24/7</li><li>QR works anywhere</li><li>Near-zero cost</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Slightly more setup</li><li>Content briefly public</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
