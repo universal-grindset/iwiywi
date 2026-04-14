@@ -36,15 +36,7 @@ pub async fn run(config: &Config) -> Result<()> {
         .into_iter()
         .map(|r| {
             let client = client.clone();
-            let config = crate::config::Config {
-                ai: crate::config::AiConfig {
-                    model: config.ai.model.clone(),
-                    gateway_url: config.ai.gateway_url.clone(),
-                },
-                vercel: crate::config::VercelConfig {
-                    project_url: config.vercel.project_url.clone(),
-                },
-            };
+            let config = config.clone();
             tokio::spawn(async move { classify::classify(&client, &config, r).await })
         })
         .collect();
@@ -59,6 +51,10 @@ pub async fn run(config: &Config) -> Result<()> {
     }
     println!("Classified {} readings", classified.len());
 
+    if classified.is_empty() {
+        anyhow::bail!("all readings failed classification");
+    }
+
     // 4. Save to ~/.iwiywi/readings-YYYY-MM-DD.json
     write_readings(&classified).context("writing readings to disk")?;
     println!("Saved readings to {}", crate::storage::readings_path().display());
@@ -66,6 +62,7 @@ pub async fn run(config: &Config) -> Result<()> {
     // 5. Render mobile HTML
     let html = html::render(&classified, &config.vercel.project_url);
     let dist_dir = PathBuf::from("/tmp/iwiywi-dist");
+    let _ = fs::remove_dir_all(&dist_dir);
     fs::create_dir_all(&dist_dir)?;
     fs::write(dist_dir.join("index.html"), html)?;
 
