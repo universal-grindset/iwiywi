@@ -16,7 +16,7 @@ pub fn env_pull(env_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Writes index.html to dist_dir and deploys via `vercel deploy --prod`
+/// Deploys dist_dir contents via `vercel deploy --prod`
 pub fn deploy(dist_dir: &Path) -> Result<()> {
     let output = Command::new("vercel")
         .args(["deploy", "--prod"])
@@ -26,10 +26,10 @@ pub fn deploy(dist_dir: &Path) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("`vercel deploy` failed: {}", stderr);
+        bail!("`vercel deploy` failed ({}): {}", output.status, stderr);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("Deployed: {stdout}");
+    println!("Deployed: {stdout}");
     Ok(())
 }
