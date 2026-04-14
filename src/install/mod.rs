@@ -58,7 +58,9 @@ pub fn run() -> Result<()> {
     let content = plist_content(binary_str, home_str);
     let path = plist_path()?;
 
-    fs::create_dir_all(path.parent().unwrap())?;
+    let parent = path.parent()
+        .context("plist path has no parent")?;
+    fs::create_dir_all(parent)?;
     fs::write(&path, &content).context("writing plist")?;
 
     let status = Command::new("launchctl")
