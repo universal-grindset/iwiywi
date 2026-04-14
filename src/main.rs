@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
             anyhow::bail!("install not yet implemented — coming in next release");
         }
         None => {
-            anyhow::bail!("TUI not yet implemented — run `iwiywi fetch` to populate readings");
+            crate::tui::run()?;
         }
     }
     Ok(())

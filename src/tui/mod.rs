@@ -152,3 +152,80 @@ mod tests {
         assert_eq!(app.mode, Mode::Normal);
     }
 }
+
+use anyhow::Result;
+use crossterm::{
+    event::{self, Event, KeyCode, KeyModifiers},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{backend::CrosstermBackend, Terminal};
+use std::io;
+
+use crate::config::load_config;
+use crate::storage::read_readings;
+use crate::tui::commands::{handle_command, Action};
+
+pub fn run() -> Result<()> {
+    let config = load_config()?;
+    let readings = read_readings()?;
+
+    if readings.is_empty() {
+        println!("No readings for today. Run `iwiywi fetch` first.");
+        return Ok(());
+    }
+
+    let mut app = App::new(readings, config.vercel.project_url);
+
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    loop {
+        terminal.draw(|f| widgets::render(f, &app))?;
+
+        if event::poll(std::time::Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                match &app.mode {
+                    Mode::Normal => match key.code {
+                        KeyCode::Char('q') => break,
+                        KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
+                        KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
+                        KeyCode::Char('/') => app.enter_command_mode(),
+                        _ => {}
+                    },
+                    Mode::Command(_) => match key.code {
+                        KeyCode::Esc => app.dismiss(),
+                        KeyCode::Enter => {
+                            let cmd = if let Mode::Command(s) = &app.mode {
+                                s.clone()
+                            } else {
+                                String::new()
+                            };
+                            app.dismiss();
+                            match handle_command(&cmd) {
+                                Action::ToggleQr => app.toggle_qr(),
+                                Action::Unknown => {}
+                            }
+                        }
+                        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.push_command_char(c);
+                        }
+                        KeyCode::Backspace => app.pop_command_char(),
+                        _ => {}
+                    },
+                    Mode::QrOverlay => {
+                        // Any key dismisses
+                        app.dismiss();
+                    }
+                }
+            }
+        }
+    }
+
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
+}
