@@ -12,7 +12,7 @@ pub fn render_qr_overlay(frame: &mut Frame, url: &str, area: Rect) {
     let qr_string = generate_qr_string(url);
     let lines: Vec<Line> = qr_string
         .lines()
-        .map(|l| Line::from(l.to_string()))
+        .map(|l| Line::from(l))
         .collect();
 
     let qr_width = lines.first().map(|l| l.width() as u16).unwrap_or(0) + 4;
@@ -68,5 +68,13 @@ mod tests {
         let url = "https://iwiywi.vercel.app/readings/2026-04-14?source=qr&ref=tui";
         let s = generate_qr_string(url);
         assert!(!s.is_empty());
+    }
+
+    #[test]
+    fn generate_qr_string_handles_error_gracefully() {
+        // Empty string (edge case that's safe but might be handled)
+        let s = generate_qr_string("");
+        assert!(!s.is_empty());
+        // Should return either a valid QR or error message
     }
 }
