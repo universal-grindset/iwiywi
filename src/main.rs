@@ -32,12 +32,10 @@ async fn main() -> Result<()> {
             fetch::run(&cfg).await?;
         }
         Some(Commands::Install) => {
-            // Implemented in Sub-Plan 2
-            eprintln!("install not yet implemented — coming in next release");
+            anyhow::bail!("install not yet implemented — coming in next release");
         }
         None => {
-            // TUI — implemented in Sub-Plan 2
-            eprintln!("TUI not yet implemented — run `iwiywi fetch` to populate readings");
+            anyhow::bail!("TUI not yet implemented — run `iwiywi fetch` to populate readings");
         }
     }
     Ok(())
