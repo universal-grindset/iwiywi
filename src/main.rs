@@ -1,7 +1,9 @@
 mod config;
 mod fetch;
+mod install;
 mod models;
 mod storage;
+mod tui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
