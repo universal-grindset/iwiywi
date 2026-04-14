@@ -4,13 +4,13 @@ Daily AA readings in your terminal.
 
 ## Install
 
-```
+```bash
 brew install universal-grindset/iwiywi/iwiywi
 ```
 
 ## Quick Start
 
-```
+```bash
 iwiywi install    # Set up launchd (runs at 6am daily)
 iwiywi            # Open the TUI (reads today's readings)
 ```
