@@ -5,7 +5,7 @@ pub enum Action {
 }
 
 pub fn handle_command(cmd: &str) -> Action {
-    match cmd.trim() {
+    match cmd.trim().to_lowercase().as_str() {
         "qr" => Action::ToggleQr,
         _ => Action::Unknown,
     }
@@ -28,5 +28,12 @@ mod tests {
     #[test]
     fn command_is_trimmed() {
         assert_eq!(handle_command("  qr  "), Action::ToggleQr);
+    }
+
+    #[test]
+    fn qr_command_case_insensitive() {
+        assert_eq!(handle_command("QR"), Action::ToggleQr);
+        assert_eq!(handle_command("Qr"), Action::ToggleQr);
+        assert_eq!(handle_command("qR"), Action::ToggleQr);
     }
 }
