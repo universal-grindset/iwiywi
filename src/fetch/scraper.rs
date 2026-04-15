@@ -34,27 +34,6 @@ pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
             "https://www.aabigbook.com",
             parse_aa_big_book,
         ),
-        (
-            "recovering_courage",
-            "https://www.recoveringcourage.com",
-            parse_recovering_courage,
-        ),
-        ("odat", "https://odat.us", parse_odat),
-        (
-            "joe_and_charlie",
-            "https://joeancharlie.com",
-            parse_joe_and_charlie,
-        ),
-        (
-            "google",
-            "https://www.google.com/search?q=aa+thought+for+the+day",
-            parse_google_snippet,
-        ),
-        (
-            "reddit",
-            "https://www.reddit.com/r/alcoholicsanonymous/search/?q=daily+reading&sort=new",
-            parse_reddit,
-        ),
     ];
 
     let mut results = Vec::new();
@@ -198,82 +177,6 @@ pub fn parse_aa_big_book(html: &str) -> Option<RawReading> {
     })
 }
 
-pub fn parse_recovering_courage(html: &str) -> Option<RawReading> {
-    // https://www.recoveringcourage.com — verify selector on live site
-    let document = Html::parse_document(html);
-    let sel = Selector::parse("article p").ok()?;
-    let text = first_nonempty_paragraph(&document, &sel)?;
-    Some(RawReading {
-        source: "Recovering Courage".to_string(),
-        title: "Daily Reading".to_string(),
-        text,
-        url: "https://www.recoveringcourage.com".to_string(),
-    })
-}
-
-pub fn parse_odat(html: &str) -> Option<RawReading> {
-    // https://odat.us — One Day At A Time — verify selector on live site
-    let document = Html::parse_document(html);
-    let sel = Selector::parse(".daily-reading p").ok()?;
-    let text = first_nonempty_paragraph(&document, &sel)?;
-    Some(RawReading {
-        source: "One Day At A Time".to_string(),
-        title: "Daily Reading".to_string(),
-        text,
-        url: "https://odat.us".to_string(),
-    })
-}
-
-pub fn parse_joe_and_charlie(html: &str) -> Option<RawReading> {
-    // https://joeancharlie.com — A Program for You — verify selector on live site
-    let document = Html::parse_document(html);
-    let sel = Selector::parse(".entry-content p").ok()?;
-    let text = first_nonempty_paragraph(&document, &sel)?;
-    Some(RawReading {
-        source: "Joe and Charlie".to_string(),
-        title: "A Program for You".to_string(),
-        text,
-        url: "https://joeancharlie.com".to_string(),
-    })
-}
-
-pub fn parse_google_snippet(html: &str) -> Option<RawReading> {
-    // Google featured snippet — selector may change; verify on live search result
-    let document = Html::parse_document(html);
-    // Try multiple known Google snippet selectors
-    for selector_str in &[".BNeawe", ".hgKElc", "[data-attrid='wa:/description']"] {
-        if let Ok(sel) = Selector::parse(selector_str) {
-            let text: String = document
-                .select(&sel)
-                .next()
-                .map(|e| e.text().collect::<String>())?
-                .trim()
-                .to_string();
-            if !text.is_empty() {
-                return Some(RawReading {
-                    source: "Google".to_string(),
-                    title: "AA Thought for the Day".to_string(),
-                    text,
-                    url: "https://www.google.com/search?q=aa+thought+for+the+day".to_string(),
-                });
-            }
-        }
-    }
-    None
-}
-
-pub fn parse_reddit(html: &str) -> Option<RawReading> {
-    // r/alcoholicsanonymous — daily thread or top post
-    let document = Html::parse_document(html);
-    let sel = Selector::parse("[data-testid='post-content'] p").ok()?;
-    let text = first_nonempty_paragraph(&document, &sel)?;
-    Some(RawReading {
-        source: "Reddit r/alcoholicsanonymous".to_string(),
-        title: "Daily Thread".to_string(),
-        text,
-        url: "https://www.reddit.com/r/alcoholicsanonymous/".to_string(),
-    })
-}
 
 #[cfg(test)]
 mod tests {
@@ -354,44 +257,5 @@ mod tests {
         assert!(result.unwrap().text.contains("Big Book"));
     }
 
-    #[test]
-    fn parse_recovering_courage_extracts_text() {
-        let html = r#"<html><body><article><p>Courage in recovery.</p></article></body></html>"#;
-        let result = parse_recovering_courage(html);
-        assert!(result.is_some());
-        assert!(result.unwrap().text.contains("Courage"));
-    }
 
-    #[test]
-    fn parse_odat_extracts_text() {
-        let html = r#"<html><body><div class="daily-reading"><p>One day at a time.</p></div></body></html>"#;
-        let result = parse_odat(html);
-        assert!(result.is_some());
-        assert!(result.unwrap().text.contains("One day"));
-    }
-
-    #[test]
-    fn parse_joe_and_charlie_extracts_text() {
-        let html = r#"<html><body><div class="entry-content"><p>A program for you text.</p></div></body></html>"#;
-        let result = parse_joe_and_charlie(html);
-        assert!(result.is_some());
-        assert!(result.unwrap().text.contains("program"));
-    }
-
-    #[test]
-    fn parse_google_snippet_extracts_text() {
-        // Google featured snippet fixture
-        let html = r#"<html><body><div class="BNeawe"><span>God grant me the serenity.</span></div></body></html>"#;
-        let result = parse_google_snippet(html);
-        assert!(result.is_some());
-        assert!(result.unwrap().text.contains("serenity"));
-    }
-
-    #[test]
-    fn parse_reddit_extracts_text() {
-        let html = r#"<html><body><div data-testid="post-content"><p>Today's reading discussion.</p></div></body></html>"#;
-        let result = parse_reddit(html);
-        assert!(result.is_some());
-        assert!(result.unwrap().text.contains("reading"));
-    }
 }
