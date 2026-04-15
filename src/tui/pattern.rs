@@ -65,17 +65,30 @@ pub fn draw(buf: &mut Buffer, area: Rect, text_rect: Rect, palette: &Palette, pa
 }
 
 fn draw_dots(buf: &mut Buffer, area: Rect, palette: &Palette) {
-    if area.width < 4 || area.height < 4 { return; }
+    if area.width < 10 || area.height < 4 { return; }
     let style = Style::default().fg(palette.muted);
-    let coords = [
-        (area.x + 1, area.y + 1),
-        (area.x + area.width.saturating_sub(2), area.y + 1),
-        (area.x + 1, area.y + area.height.saturating_sub(2)),
-        (area.x + area.width.saturating_sub(2), area.y + area.height.saturating_sub(2)),
-    ];
-    for (x, y) in coords {
-        buf[(x, y)].set_symbol("·").set_style(style);
+    // Deterministic scattered field — about 1 dot per 18 cells. Same
+    // xorshift-mult hash as the drift particles so the density looks
+    // consistent across the two patterns when users switch.
+    let total = (area.width as usize) * (area.height as usize);
+    let count = (total / 18).clamp(30, 500);
+    for i in 0..count {
+        let hx = pseudo_rand(0xD14D_B33F, i * 2);
+        let hy = pseudo_rand(0xD14D_B33F, i * 2 + 1);
+        let x = (hx % u32::from(area.width)) as u16;
+        let y = (hy % u32::from(area.height)) as u16;
+        buf[(area.x + x, area.y + y)]
+            .set_symbol("·")
+            .set_style(style);
     }
+}
+
+fn pseudo_rand(seed: u32, n: usize) -> u32 {
+    let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(n as u32);
+    x ^= x >> 13;
+    x = x.wrapping_mul(0x5bd1_e995);
+    x ^= x >> 15;
+    x
 }
 
 fn draw_frame(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
