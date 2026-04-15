@@ -130,10 +130,20 @@ pub struct App {
     /// True when the user set `IWIYWI_PALETTE=auto`; re-derives the
     /// variant from the current hour every ~60s.
     pub palette_auto: bool,
+    /// Last time the drift particle field advanced. Used to tick drift
+    /// on a wall-clock cadence independent of event rate — otherwise
+    /// held-key input starves the animation and particles stutter.
+    pub last_drift_tick: Instant,
+    /// Last frame draw time. Used to cap redraws at 30 fps so bursts of
+    /// events don't trigger hundreds of redraws per second.
+    pub last_draw: Instant,
 }
 
 const IDLE_DIM_AFTER: Duration = Duration::from_secs(300);
 const IDLE_DIM_FACTOR: f32 = 0.32;
+/// Target frame cadence. 30 fps is smooth for particle animation without
+/// being wasteful on modern terminals.
+const FRAME_MS: u64 = 33;
 
 impl App {
     pub fn rebuild_mixer(&mut self) {
@@ -652,6 +662,8 @@ pub fn run(
         showcase: false,
         last_input: Instant::now(),
         palette_auto: palette::auto_requested(),
+        last_drift_tick: Instant::now(),
+        last_draw: Instant::now() - Duration::from_secs(1), // force first draw
     };
 
     // Spawn background AI tasks. Each runs on its own thread with a fresh
@@ -676,6 +688,16 @@ pub fn run(
                 app.toast = None;
             }
         }
+
+        // Tick drift on a real-time cadence so animation keeps flowing
+        // independently of event rate. Without this, held-key input
+        // starves the animation (drift only ticked in the no-event branch).
+        if let Some(state) = app.drift.as_mut() {
+            if app.last_drift_tick.elapsed() >= Duration::from_millis(FRAME_MS) {
+                state.tick(size.width, size.height);
+                app.last_drift_tick = Instant::now();
+            }
+        }
         // Compute the effective palette each frame: idle dim kicks in after
         // IDLE_DIM_AFTER with no keypress. Palette-auto re-derives the
         // variant from the current hour so the display drifts through the
@@ -691,6 +713,11 @@ pub fn run(
         };
         if idle { eff_palette = eff_palette.dim(IDLE_DIM_FACTOR); }
 
+        // Cap draw rate at FRAME_MS so event storms (held-key input drain)
+        // don't cause hundreds of redraws per second.
+        let should_draw = app.last_draw.elapsed() >= Duration::from_millis(FRAME_MS);
+        if should_draw {
+            app.last_draw = Instant::now();
         terminal.draw(|f| {
             let eff_pattern = if app.showcase { pattern::Pattern::None } else { app.pattern };
             let eff_drift = if app.showcase { None } else { app.drift.as_ref() };
@@ -737,6 +764,7 @@ pub fn run(
                 overlay::render(f, &eff_palette, ov);
             }
         })?;
+        } // end if should_draw
 
         // Apply any completed AI call to the open overlay.
         app.poll_ai();
@@ -762,10 +790,10 @@ pub fn run(
             }
         }
 
-        // Poll slower when nothing's animating. 80ms = ~12 fps for drift,
-        // 200ms = 5 fps for static patterns. Halves idle CPU without any
-        // perceptible input lag.
-        let poll_ms = if app.pattern.is_animated() { 80 } else { 200 };
+        // Poll cadence: match FRAME_MS when animated so drift stays smooth
+        // at 30 fps; slow to 200ms for static patterns (nothing needs to
+        // advance between events).
+        let poll_ms = if app.pattern.is_animated() { FRAME_MS } else { 200 };
         if event::poll(Duration::from_millis(poll_ms))? {
             // Drain all pending events in one pass before redrawing.
             // Without this, holding a key (n/p/r) produces ~30 events/sec,
@@ -956,6 +984,8 @@ mod tests {
             showcase: false,
             last_input: Instant::now(),
             palette_auto: false,
+            last_drift_tick: Instant::now(),
+            last_draw: Instant::now(),
         }
     }
 
