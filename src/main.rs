@@ -41,6 +41,11 @@ async fn main() -> Result<()> {
             install::run()?;
         }
         None => {
+            let cfg = config::load_config()?;
+            if storage::read_readings()?.is_empty() {
+                println!("No readings for today — fetching...");
+                fetch::run(&cfg).await?;
+            }
             crate::tui::run()?;
         }
     }
