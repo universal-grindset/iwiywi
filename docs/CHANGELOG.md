@@ -4,6 +4,18 @@ All notable changes to iwiywi are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-15
+- Changed: **TUI is now pulse-only** — no tabs, no command bar, no QR overlay, no drift particles, no fade animation. The screensaver is the app.
+- Added: Six env-var knobs — `IWIYWI_PULSE_SECS`, `IWIYWI_PALETTE` (8 variants), `IWIYWI_PATTERN` (4), `IWIYWI_ORDER` (4), `IWIYWI_FOCUS` (11)
+- Added: 4 new corpora — 12 Traditions, 12 Concepts for World Service, 30 standard AA slogans, 15 Grapevine fallback quotes
+- Added: Live Grapevine Quote of the Day scraper (`grapevine.org`)
+- Added: Boilerplate trimmer for scraped readings (drops trademark/copyright footers)
+- Removed: QR overlay, gist publishing, markdown render, drift particles, fade animation, tab bar, command bar, idle screensaver mode
+- Removed: `qrcode` and `noise` crate dependencies
+- Removed: `[mobile]` config section + `gist_id` field
+- Removed: `IWIYWI_IDLE_SECS` env var (no idle mode anymore — pulse is the only mode)
+- Tightened: AA Happy Hour scraper now extracts only the first paragraph (was dumping every paragraph including unrelated sections)
+
 ## [0.4.0] — 2026-04-15
 - Added: **Pulse system** — the drift screensaver now cycles a unified mix of today's readings, every saved historical reading, 15 verbatim Big Book quotes, 7 standard AA prayers, the 12 Steps, and the 12 Principles
 - Added: `p` key — manual pulse on demand from any tab
