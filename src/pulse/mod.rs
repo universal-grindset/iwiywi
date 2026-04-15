@@ -77,6 +77,59 @@ pub fn order_from_env() -> Order {
     Order::parse(std::env::var("IWIYWI_ORDER").ok().as_deref())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    All,
+    Today,
+    History,
+    BigBook,
+    Prayers,
+    Steps,
+    Principles,
+    Grapevine,
+    Traditions,
+    Concepts,
+    Slogans,
+}
+
+impl Focus {
+    pub fn parse(raw: Option<&str>) -> Focus {
+        match raw {
+            Some("today")      => Focus::Today,
+            Some("history")    => Focus::History,
+            Some("big_book")   => Focus::BigBook,
+            Some("prayers")    => Focus::Prayers,
+            Some("steps")      => Focus::Steps,
+            Some("principles") => Focus::Principles,
+            Some("grapevine")  => Focus::Grapevine,
+            Some("traditions") => Focus::Traditions,
+            Some("concepts")   => Focus::Concepts,
+            Some("slogans")    => Focus::Slogans,
+            _ => Focus::All,
+        }
+    }
+
+    /// True if the given source name passes this focus filter.
+    pub fn admits(&self, source_name: &str) -> bool {
+        match self {
+            Focus::All        => true,
+            Focus::Today      => source_name == "today",
+            Focus::History    => source_name == "historical",
+            Focus::BigBook    => source_name == "big_book",
+            Focus::Prayers    => source_name == "prayers",
+            Focus::Steps | Focus::Principles => source_name == "step_explainers",
+            Focus::Grapevine  => source_name == "grapevine",
+            Focus::Traditions => source_name == "traditions",
+            Focus::Concepts   => source_name == "concepts",
+            Focus::Slogans    => source_name == "slogans",
+        }
+    }
+}
+
+pub fn focus_from_env() -> Focus {
+    Focus::parse(std::env::var("IWIYWI_FOCUS").ok().as_deref())
+}
+
 pub trait PulseSource {
     fn name(&self) -> &str;
     fn items(&self) -> &[PulseItem];
@@ -344,5 +397,31 @@ mod tests {
         let start = mixer.cursor();
         mixer.advance_per_order(Order::Random, 0xdead_beef);
         assert_ne!(mixer.cursor(), start);
+    }
+
+    #[test]
+    fn focus_parse_defaults_to_all() {
+        assert_eq!(Focus::parse(None), Focus::All);
+        assert_eq!(Focus::parse(Some("garbage")), Focus::All);
+    }
+
+    #[test]
+    fn focus_parse_recognizes_all_kinds() {
+        assert_eq!(Focus::parse(Some("today")), Focus::Today);
+        assert_eq!(Focus::parse(Some("big_book")), Focus::BigBook);
+        assert_eq!(Focus::parse(Some("traditions")), Focus::Traditions);
+        assert_eq!(Focus::parse(Some("concepts")), Focus::Concepts);
+        assert_eq!(Focus::parse(Some("slogans")), Focus::Slogans);
+        assert_eq!(Focus::parse(Some("grapevine")), Focus::Grapevine);
+    }
+
+    #[test]
+    fn focus_admits_matches_source_name() {
+        assert!(Focus::All.admits("anything"));
+        assert!(Focus::Today.admits("today"));
+        assert!(!Focus::Today.admits("historical"));
+        assert!(Focus::Steps.admits("step_explainers"));
+        assert!(Focus::Principles.admits("step_explainers"));
+        assert!(!Focus::BigBook.admits("prayers"));
     }
 }
