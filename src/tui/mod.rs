@@ -180,7 +180,8 @@ impl App {
         if self.last_input.elapsed() < threshold {
             return;
         }
-        self.drift = Some(drift::DriftState::new(width, height, 1));
+        let seed = self.last_input.elapsed().as_nanos() as u32;
+        self.drift = Some(drift::DriftState::new(width, height, seed));
         self.mode = Mode::Drift;
     }
 
