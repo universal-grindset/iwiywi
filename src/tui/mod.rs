@@ -278,6 +278,9 @@ pub fn run() -> Result<()> {
                         Mode::Normal => match key.code {
                             KeyCode::Char('q') => break,
                             KeyCode::Char('a') => app.set_tab(Tab::All),
+                            KeyCode::Char('p') => {
+                                app.enter_pulse(size.width, size.height, None);
+                            }
                             KeyCode::Char('s') => app.set_tab(Tab::Steps),
                             KeyCode::Char('?') => app.set_tab(Tab::Help),
                             KeyCode::Tab => app.next_tab(),
