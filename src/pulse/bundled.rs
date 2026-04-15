@@ -111,6 +111,89 @@ impl PulseSource for BigBookQuotes {
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
+const TRADITIONS_JSON: &str = include_str!("data/traditions.json");
+
+#[derive(serde::Deserialize)]
+struct TraditionEntry {
+    n: u8,
+    body: String,
+}
+
+pub struct Traditions {
+    items: Vec<PulseItem>,
+}
+
+impl Traditions {
+    pub fn load() -> Self {
+        let entries: Vec<TraditionEntry> =
+            serde_json::from_str(TRADITIONS_JSON).expect("traditions.json malformed");
+        let items = entries
+            .into_iter()
+            .map(|e| PulseItem {
+                kind: PulseKind::Tradition,
+                step: None,
+                label: format!("Tradition {}", e.n),
+                body: e.body,
+            })
+            .collect();
+        Traditions { items }
+    }
+}
+
+impl PulseSource for Traditions {
+    fn name(&self) -> &str { "traditions" }
+    fn items(&self) -> &[PulseItem] { &self.items }
+}
+
+const CONCEPTS_JSON: &str = include_str!("data/concepts.json");
+
+#[derive(serde::Deserialize)]
+struct ConceptEntry { n: u8, body: String }
+
+pub struct Concepts { items: Vec<PulseItem> }
+
+impl Concepts {
+    pub fn load() -> Self {
+        let entries: Vec<ConceptEntry> =
+            serde_json::from_str(CONCEPTS_JSON).expect("concepts.json malformed");
+        let items = entries.into_iter().map(|e| PulseItem {
+            kind: PulseKind::Concept,
+            step: None,
+            label: format!("Concept {} for World Service", e.n),
+            body: e.body,
+        }).collect();
+        Concepts { items }
+    }
+}
+
+impl PulseSource for Concepts {
+    fn name(&self) -> &str { "concepts" }
+    fn items(&self) -> &[PulseItem] { &self.items }
+}
+
+const SLOGANS_JSON: &str = include_str!("data/slogans.json");
+
+pub struct Slogans { items: Vec<PulseItem> }
+
+impl Slogans {
+    pub fn load() -> Self {
+        let entries: Vec<String> =
+            serde_json::from_str(SLOGANS_JSON).expect("slogans.json malformed");
+        let items = entries.into_iter().map(|s| PulseItem {
+            kind: PulseKind::Slogan,
+            step: None,
+            label: "Slogan".to_string(),
+            body: s,
+        }).collect();
+        Slogans { items }
+    }
+}
+
+impl PulseSource for Slogans {
+    fn name(&self) -> &str { "slogans" }
+    fn items(&self) -> &[PulseItem] { &self.items }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +263,76 @@ mod tests {
     fn big_book_label_includes_page_number() {
         let bb = BigBookQuotes::load();
         assert!(bb.items()[0].label.contains("p."));
+    }
+
+    #[test]
+    fn traditions_load_yields_twelve() {
+        let t = Traditions::load();
+        assert_eq!(t.items().len(), 12);
+        assert_eq!(t.name(), "traditions");
+    }
+
+    #[test]
+    fn traditions_all_tradition_kind_no_step() {
+        let t = Traditions::load();
+        for item in t.items() {
+            assert_eq!(item.kind, PulseKind::Tradition);
+            assert!(item.step.is_none());
+            assert!(item.label.starts_with("Tradition "));
+        }
+    }
+
+    #[test]
+    fn tradition_one_starts_with_common_welfare() {
+        let t = Traditions::load();
+        assert!(t.items()[0].body.starts_with("Our common welfare"));
+    }
+
+    #[test]
+    fn concepts_load_yields_twelve() {
+        let c = Concepts::load();
+        assert_eq!(c.items().len(), 12);
+        assert_eq!(c.name(), "concepts");
+    }
+
+    #[test]
+    fn concepts_all_concept_kind_no_step() {
+        let c = Concepts::load();
+        for item in c.items() {
+            assert_eq!(item.kind, PulseKind::Concept);
+            assert!(item.step.is_none());
+            assert!(item.label.starts_with("Concept "));
+        }
+    }
+
+    #[test]
+    fn pulse_kind_new_variants_have_display_labels() {
+        assert_eq!(PulseKind::Tradition.display_label(), "Tradition");
+        assert_eq!(PulseKind::Concept.display_label(), "Concept");
+        assert_eq!(PulseKind::Slogan.display_label(), "Slogan");
+        assert_eq!(PulseKind::Grapevine.display_label(), "Grapevine");
+    }
+
+    #[test]
+    fn slogans_load_yields_thirty() {
+        let s = Slogans::load();
+        assert_eq!(s.items().len(), 30);
+        assert_eq!(s.name(), "slogans");
+    }
+
+    #[test]
+    fn slogans_all_slogan_kind() {
+        let s = Slogans::load();
+        for item in s.items() {
+            assert_eq!(item.kind, PulseKind::Slogan);
+            assert!(item.step.is_none());
+            assert_eq!(item.label, "Slogan");
+        }
+    }
+
+    #[test]
+    fn halt_slogan_present() {
+        let s = Slogans::load();
+        assert!(s.items().iter().any(|i| i.body.starts_with("HALT")));
     }
 }

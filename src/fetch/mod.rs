@@ -1,13 +1,11 @@
 pub mod ai_extract;
 pub mod classify;
-pub mod gist;
-pub mod markdown;
 pub mod scraper;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
 
-use crate::config::{load_env, save_config, Config};
+use crate::config::{load_env, Config};
 use crate::storage::write_readings;
 
 pub async fn run(config: &Config) -> Result<()> {
@@ -49,23 +47,7 @@ pub async fn run(config: &Config) -> Result<()> {
     }
 
     write_readings(&classified).context("writing readings to disk")?;
-    println!(
-        "Saved readings to {}",
-        crate::storage::readings_path().display()
-    );
-
-    let md = markdown::render(&classified);
-    let gist_id =
-        gist::publish(&md, config.mobile.gist_id.as_deref()).context("publishing gist")?;
-
-    if config.mobile.gist_id.as_deref() != Some(gist_id.as_str()) {
-        let mut updated = config.clone();
-        updated.mobile.gist_id = Some(gist_id.clone());
-        save_config(&updated).context("saving gist_id to config.toml")?;
-        println!("Created gist https://gist.github.com/{gist_id}");
-    } else {
-        println!("Updated gist https://gist.github.com/{gist_id}");
-    }
+    println!("Saved readings to {}", crate::storage::readings_path().display());
 
     Ok(())
 }

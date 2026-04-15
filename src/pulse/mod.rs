@@ -3,6 +3,7 @@
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
 pub mod bundled;
+pub mod grapevine;
 pub mod historical;
 pub mod today;
 
@@ -16,6 +17,10 @@ pub enum PulseKind {
     Prayer,
     StepText,
     Principle,
+    Tradition,
+    Concept,
+    Slogan,
+    Grapevine,
 }
 
 impl PulseKind {
@@ -27,6 +32,10 @@ impl PulseKind {
             PulseKind::Prayer            => "Prayer",
             PulseKind::StepText          => "Step",
             PulseKind::Principle         => "Principle",
+            PulseKind::Tradition         => "Tradition",
+            PulseKind::Concept           => "Concept",
+            PulseKind::Slogan            => "Slogan",
+            PulseKind::Grapevine         => "Grapevine",
         }
     }
 }
@@ -45,6 +54,82 @@ pub struct PulseItem {
 
 use sha2::{Digest, Sha256};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Order {
+    Random,
+    Sequential,
+    ByStep,
+    BySource,
+}
+
+impl Order {
+    pub fn parse(raw: Option<&str>) -> Order {
+        match raw {
+            Some("sequential") => Order::Sequential,
+            Some("by-step")    => Order::ByStep,
+            Some("by-source")  => Order::BySource,
+            _ => Order::Random,
+        }
+    }
+}
+
+pub fn order_from_env() -> Order {
+    Order::parse(std::env::var("IWIYWI_ORDER").ok().as_deref())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    All,
+    Today,
+    History,
+    BigBook,
+    Prayers,
+    Steps,
+    Principles,
+    Grapevine,
+    Traditions,
+    Concepts,
+    Slogans,
+}
+
+impl Focus {
+    pub fn parse(raw: Option<&str>) -> Focus {
+        match raw {
+            Some("today")      => Focus::Today,
+            Some("history")    => Focus::History,
+            Some("big_book")   => Focus::BigBook,
+            Some("prayers")    => Focus::Prayers,
+            Some("steps")      => Focus::Steps,
+            Some("principles") => Focus::Principles,
+            Some("grapevine")  => Focus::Grapevine,
+            Some("traditions") => Focus::Traditions,
+            Some("concepts")   => Focus::Concepts,
+            Some("slogans")    => Focus::Slogans,
+            _ => Focus::All,
+        }
+    }
+
+    /// True if the given source name passes this focus filter.
+    pub fn admits(&self, source_name: &str) -> bool {
+        match self {
+            Focus::All        => true,
+            Focus::Today      => source_name == "today",
+            Focus::History    => source_name == "historical",
+            Focus::BigBook    => source_name == "big_book",
+            Focus::Prayers    => source_name == "prayers",
+            Focus::Steps | Focus::Principles => source_name == "step_explainers",
+            Focus::Grapevine  => source_name == "grapevine",
+            Focus::Traditions => source_name == "traditions",
+            Focus::Concepts   => source_name == "concepts",
+            Focus::Slogans    => source_name == "slogans",
+        }
+    }
+}
+
+pub fn focus_from_env() -> Focus {
+    Focus::parse(std::env::var("IWIYWI_FOCUS").ok().as_deref())
+}
+
 pub trait PulseSource {
     fn name(&self) -> &str;
     fn items(&self) -> &[PulseItem];
@@ -56,25 +141,29 @@ pub struct PulseMixer {
 }
 
 impl PulseMixer {
-    pub fn from_sources(sources: &[Box<dyn PulseSource>], filter_step: Option<u8>) -> Self {
+    pub fn from_sources(
+        sources: &[Box<dyn PulseSource>],
+        filter_step: Option<u8>,
+        order: Order,
+    ) -> Self {
         let mut items: Vec<PulseItem> = Vec::new();
         let mut seen: std::collections::HashSet<[u8; 32]> = std::collections::HashSet::new();
         for src in sources {
             for item in src.items() {
                 if let Some(want) = filter_step {
-                    if item.step != Some(want) {
-                        continue;
-                    }
+                    if item.step != Some(want) { continue; }
                 }
                 let mut hasher = Sha256::new();
                 hasher.update(src.name().as_bytes());
                 hasher.update([0u8]);
                 hasher.update(item.body.as_bytes());
                 let digest: [u8; 32] = hasher.finalize().into();
-                if seen.insert(digest) {
-                    items.push(item.clone());
-                }
+                if seen.insert(digest) { items.push(item.clone()); }
             }
+        }
+        match order {
+            Order::ByStep => items.sort_by_key(|i| i.step.unwrap_or(255)),
+            Order::BySource | Order::Random | Order::Sequential => { /* preserved as appended */ }
         }
         PulseMixer { items, cursor: 0 }
     }
@@ -117,6 +206,16 @@ impl PulseMixer {
             next = (next + 1) % self.items.len();
         }
         self.cursor = next;
+    }
+
+    /// Advance the cursor according to the given order. For `Random`, jumps
+    /// to a deterministic random position from `seed`. For sequential variants,
+    /// walks the items in the order produced by `from_sources`.
+    pub fn advance_per_order(&mut self, order: Order, seed: u32) {
+        match order {
+            Order::Random => self.random_jump(seed),
+            Order::Sequential | Order::ByStep | Order::BySource => self.advance(),
+        }
     }
 }
 
@@ -172,7 +271,7 @@ mod tests {
             name: "s2",
             items: vec![item(PulseKind::Prayer, None, "c")],
         });
-        let mixer = PulseMixer::from_sources(&[s1, s2], None);
+        let mixer = PulseMixer::from_sources(&[s1, s2], None, Order::Random);
         assert_eq!(mixer.len(), 3);
     }
 
@@ -186,7 +285,7 @@ mod tests {
                 item(PulseKind::TodayReading, None, "z"),
             ],
         });
-        let mut mixer = PulseMixer::from_sources(&[s], None);
+        let mut mixer = PulseMixer::from_sources(&[s], None, Order::Random);
         let first = mixer.current().unwrap().body.clone();
         mixer.advance();
         let second = mixer.current().unwrap().body.clone();
@@ -209,7 +308,7 @@ mod tests {
                 item(PulseKind::Prayer, None, "prayer"),
             ],
         });
-        let mixer = PulseMixer::from_sources(&[s], Some(3));
+        let mixer = PulseMixer::from_sources(&[s], Some(3), Order::Random);
         assert_eq!(mixer.len(), 2);
         for item in mixer.all() {
             assert_eq!(item.step, Some(3));
@@ -226,7 +325,7 @@ mod tests {
                 item(PulseKind::HistoricalReading, None, "different body"),
             ],
         });
-        let mixer = PulseMixer::from_sources(&[s], None);
+        let mixer = PulseMixer::from_sources(&[s], None, Order::Random);
         assert_eq!(mixer.len(), 2);
     }
 
@@ -236,7 +335,7 @@ mod tests {
             name: "s",
             items: (0..50).map(|n| item(PulseKind::TodayReading, None, &n.to_string())).collect(),
         });
-        let mut mixer = PulseMixer::from_sources(&[s], None);
+        let mut mixer = PulseMixer::from_sources(&[s], None, Order::Random);
         let start = mixer.cursor();
         mixer.random_jump(0xdead_beef);
         // With 50 items and a fixed seed, the new cursor should differ.
@@ -245,7 +344,7 @@ mod tests {
 
     #[test]
     fn mixer_empty_returns_none() {
-        let mixer = PulseMixer::from_sources(&[], None);
+        let mixer = PulseMixer::from_sources(&[], None, Order::Random);
         assert_eq!(mixer.len(), 0);
         assert!(mixer.current().is_none());
     }
@@ -258,5 +357,71 @@ mod tests {
         assert_eq!(PulseKind::Prayer.display_label(), "Prayer");
         assert_eq!(PulseKind::StepText.display_label(), "Step");
         assert_eq!(PulseKind::Principle.display_label(), "Principle");
+    }
+
+    #[test]
+    fn order_parse_defaults_to_random() {
+        assert_eq!(Order::parse(None), Order::Random);
+        assert_eq!(Order::parse(Some("garbage")), Order::Random);
+    }
+
+    #[test]
+    fn order_parse_recognizes_all_variants() {
+        assert_eq!(Order::parse(Some("sequential")), Order::Sequential);
+        assert_eq!(Order::parse(Some("by-step")), Order::ByStep);
+        assert_eq!(Order::parse(Some("by-source")), Order::BySource);
+    }
+
+    #[test]
+    fn mixer_by_step_sorts_items_by_step_number() {
+        let s: Box<dyn PulseSource> = Box::new(StubSource {
+            name: "s",
+            items: vec![
+                item(PulseKind::TodayReading, Some(7), "g"),
+                item(PulseKind::TodayReading, Some(1), "a"),
+                item(PulseKind::TodayReading, Some(3), "c"),
+            ],
+        });
+        let mixer = PulseMixer::from_sources(&[s], None, Order::ByStep);
+        let bodies: Vec<&str> = mixer.all().iter().map(|i| i.body.as_str()).collect();
+        assert_eq!(bodies, ["a", "c", "g"]);
+    }
+
+    #[test]
+    fn advance_per_order_random_uses_random_jump() {
+        let s: Box<dyn PulseSource> = Box::new(StubSource {
+            name: "s",
+            items: (0..50).map(|n| item(PulseKind::TodayReading, None, &n.to_string())).collect(),
+        });
+        let mut mixer = PulseMixer::from_sources(&[s], None, Order::Random);
+        let start = mixer.cursor();
+        mixer.advance_per_order(Order::Random, 0xdead_beef);
+        assert_ne!(mixer.cursor(), start);
+    }
+
+    #[test]
+    fn focus_parse_defaults_to_all() {
+        assert_eq!(Focus::parse(None), Focus::All);
+        assert_eq!(Focus::parse(Some("garbage")), Focus::All);
+    }
+
+    #[test]
+    fn focus_parse_recognizes_all_kinds() {
+        assert_eq!(Focus::parse(Some("today")), Focus::Today);
+        assert_eq!(Focus::parse(Some("big_book")), Focus::BigBook);
+        assert_eq!(Focus::parse(Some("traditions")), Focus::Traditions);
+        assert_eq!(Focus::parse(Some("concepts")), Focus::Concepts);
+        assert_eq!(Focus::parse(Some("slogans")), Focus::Slogans);
+        assert_eq!(Focus::parse(Some("grapevine")), Focus::Grapevine);
+    }
+
+    #[test]
+    fn focus_admits_matches_source_name() {
+        assert!(Focus::All.admits("anything"));
+        assert!(Focus::Today.admits("today"));
+        assert!(!Focus::Today.admits("historical"));
+        assert!(Focus::Steps.admits("step_explainers"));
+        assert!(Focus::Principles.admits("step_explainers"));
+        assert!(!Focus::BigBook.admits("prayers"));
     }
 }

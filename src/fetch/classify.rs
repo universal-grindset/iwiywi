@@ -141,7 +141,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
 
         let raw = RawReading {
@@ -177,7 +176,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),
@@ -210,7 +208,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),
@@ -241,7 +238,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),
@@ -275,7 +271,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),
@@ -299,7 +294,6 @@ mod tests {
                 gateway_url: "https://example.com".to_string(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),
@@ -331,7 +325,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
 
         let raw = RawReading {
@@ -367,7 +360,6 @@ mod tests {
                 gateway_url: server.url(),
                 api_version: None,
             },
-            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(),

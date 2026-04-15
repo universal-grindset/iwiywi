@@ -47,8 +47,31 @@ async fn main() -> Result<()> {
                 println!("No readings for today — fetching...");
                 fetch::run(&cfg).await?;
             }
-            crate::tui::run()?;
+            // Fire-and-forget Grapevine fetch: best-effort, fall back to the
+            // bundled corpus on any failure or timeout. Keeps startup quick.
+            let grapevine_html = fetch_grapevine_html().await;
+            crate::tui::run(grapevine_html)?;
         }
     }
     Ok(())
+}
+
+/// Best-effort fetch of the Grapevine Quote of the Day page. Returns `None`
+/// on any failure (DNS, timeout, non-2xx, body read error). Caller treats
+/// `None` as "use bundled fallback only."
+async fn fetch_grapevine_html() -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let resp = client
+        .get(pulse::grapevine::Grapevine::live_url())
+        .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.5)")
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    resp.text().await.ok()
 }

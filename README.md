@@ -26,51 +26,52 @@ cargo install --git https://github.com/universal-grindset/iwiywi
 ## Usage
 
 ```
-# Open today's readings (auto-fetches first if none for today)
+# Open the pulse — slow cycle of readings, prayers, Steps, and more
 iwiywi
 
-# Force a refresh
+# Force a refresh of today's readings
 iwiywi fetch
 
 # Install the 6am launchd job (macOS)
 iwiywi install
 ```
 
-Keys inside the TUI: `a` / `s` / `?` switch tabs · `Tab` cycles · `j`/`k` scroll · `←/→` change step on the Steps tab · `p` enter pulse · `r` random surprise (or re-roll inside pulse) · `Enter` on Steps tab launches step-focused pulse · `/qr` mobile QR · `q` quit.
+Keys: `n` next · `p` previous · `r` random · `q` quit · `1`–`9` `0` `-` `=` focus on Step N · `*` clear focus.
 
 ## Features
 
-- Twelve daily readings aggregated from trusted AA sources
-- Each reading classified to a Step (1–12)
-- Scrollable TUI with tabbed filtering by step
-- QR overlay (`/qr`) for mobile handoff
-- Adaptive light/dark palette, auto-detected from terminal background
-- Runs daily at 6am via launchd
-- Idle screensaver: flow-field drift animation cycles your readings after 60s
-- On-demand pulse with `p` (any tab) or `r` (single random item from anywhere)
-- Step-focused pulse: pick a step on the Steps tab and press Enter
+- Twelve daily AA readings, classified to a Step, refreshed every morning at 6am
+- A pulse that quietly cycles your readings + the public-domain Big Book + the 12 Steps + the 12 Principles + the 12 Traditions + the 12 Concepts + 30 slogans + standard AA prayers + Grapevine Quote of the Day
+- Six env-var knobs for pacing, color, pattern, order, focus, and theme
+- Auto-fetches today's readings when you open it with no data for the day
+- Adaptive light/dark detection from your terminal background
 
-## Theme
+## Choices
 
-iwiywi picks light or dark colors from your terminal background. Override if detection gets it wrong:
+iwiywi pulses through AA content. Six env vars tune the experience:
 
 ```sh
-export IWIYWI_THEME=light  # force light palette
-export IWIYWI_THEME=dark   # force dark palette
-export IWIYWI_THEME=auto   # auto-detect (default)
-```
+# Pacing
+export IWIYWI_PULSE_SECS=20      # default 20s; 0 = manual-only
 
-Set how long until the screensaver activates, or disable it:
+# Color
+export IWIYWI_THEME=auto         # light | dark | auto
+export IWIYWI_PALETTE=default    # default warm cool mono sunset sage dawn dusk
 
-```sh
-export IWIYWI_IDLE_SECS=60   # default
-export IWIYWI_IDLE_SECS=10   # faster idle
-export IWIYWI_IDLE_SECS=0    # never activate
+# Visual
+export IWIYWI_PATTERN=none       # none dots frame rule
+
+# Cycling
+export IWIYWI_ORDER=random       # random sequential by-step by-source
+
+# Restrict to one kind of content
+export IWIYWI_FOCUS=all          # all today history big_book prayers steps
+                                 # principles grapevine traditions concepts slogans
 ```
 
 ## How it works
 
-`iwiywi fetch` scrapes AA daily-reading sources (with a Wayback Machine fallback), asks the configured LLM to classify each to one of the twelve Steps with a short reason, writes the result to `~/.iwiywi/readings-<date>.json`, renders a Markdown view, and publishes it to a GitHub Gist via `gh`. The gist URL is what the QR overlay encodes — scan it and GitHub renders the page on your phone. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file (auto-fetches if missing) and renders the TUI.
+`iwiywi fetch` scrapes AA daily-reading sources (with a Wayback Machine fallback), asks the configured LLM to classify each to one of the twelve Steps with a short reason, and writes the result to `~/.iwiywi/readings-<date>.json`. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file (auto-fetches if missing), best-effort fetches the Grapevine Quote of the Day (5s timeout, falls back to a bundled corpus on failure), and opens the pulse.
 
 ### Choosing an AI provider
 
@@ -101,36 +102,34 @@ AZURE_OPENAI_API_KEY=<your key>
 
 Setting `api_version` flips the auth header from `Authorization: Bearer` to `api-key:` and appends `?api-version=…` to the URL.
 
-`gh` CLI authenticated (`gh auth login` with `gist` scope) is required for gist publishing.
-
 ## What pulses
 
-The pulse animation cycles through a mix of:
+The pulse cycles through:
 
 - **Today's readings** — the day's classified readings.
 - **Historical readings** — every prior `readings-*.json` saved in `~/.iwiywi/`.
 - **Big Book quotes** — verbatim passages from the public-domain portion (pp. 1–164).
-- **AA prayers** — Serenity, Third Step, Seventh Step, Eleventh Step (St. Francis), Set Aside, Acceptance, the Promises.
 - **The 12 Steps** — verbatim text of each Step.
 - **The 12 Principles** — Honesty, Hope, Faith, Courage, Integrity, Willingness, Humility, Brotherly Love, Justice, Perseverance, Spirituality, Service.
+- **The 12 Traditions** — verbatim long-form.
+- **The 12 Concepts for World Service** — verbatim long-form.
+- **AA prayers** — Serenity, Third Step, Seventh Step, Eleventh Step (St. Francis), Set Aside, Acceptance, the Promises.
+- **AA slogans** — HALT, One Day at a Time, Easy Does It, Live and Let Live, and 26 more.
+- **Grapevine** — daily Quote of the Day from grapevine.org, with a bundled fallback.
 
-A step-focused pulse (`Enter` on the Steps tab) shows only items tagged with the current step — including the Step text and its Principle, so the mixer is never empty.
+`IWIYWI_FOCUS` restricts the pulse to one of these kinds. Pressing a number key (`1`–`9`, `0`=10, `-`=11, `=`=12) focuses to one Step until you press `*`.
 
 <details>
 <summary>Troubleshooting</summary>
 
-**"No readings for today."** — Run `iwiywi fetch` once. Readings are keyed by local date.
+**"No readings for today."** — Run `iwiywi fetch` once. Readings are keyed by local date. (Or just open `iwiywi` — it auto-fetches.)
 
 **`VERCEL_AI_GATEWAY_TOKEN not set`.** — Add it to `~/.iwiywi/.env`. (Or switch to Azure — see "Choosing an AI provider" above.)
 
-**`AZURE_OPENAI_API_KEY not set`.** — Same — add it to `~/.iwiywi/.env`. Required when `api_version` is set in `config.toml`.
+**`AZURE_OPENAI_API_KEY not set`.** — Add it to `~/.iwiywi/.env`. Required when `api_version` is set in `config.toml`.
 
-**`gh gist create` fails.** — Run `gh auth login` and ensure the `gist` scope is granted (`gh auth refresh -s gist`).
-
-**Colors look wrong.** — Set `IWIYWI_THEME=light` or `IWIYWI_THEME=dark` explicitly.
+**Colors look wrong.** — Set `IWIYWI_THEME=light` or `IWIYWI_THEME=dark` explicitly, or pick a different `IWIYWI_PALETTE`.
 
 **launchd job didn't run.** — `launchctl list | grep iwiywi` to confirm it's loaded, and check `~/Library/Logs/iwiywi.log`.
-
-**QR scan opens nothing.** — First run needs `gh` authenticated; the gist ID is stored in `~/.iwiywi/config.toml` after the first successful fetch.
 
 </details>
