@@ -103,6 +103,10 @@ impl DriftState {
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
+        if width == 0 || height == 0 {
+            self.particles.clear();
+            return;
+        }
         let want = particle_count(width, height);
         let seed = self.start.elapsed().as_nanos() as u32;
         self.particles = (0..want)
@@ -226,10 +230,25 @@ mod tests {
     }
 
     #[test]
-    fn resize_adjusts_particle_count() {
-        let mut s = DriftState::new(40, 20, 1);
-        let before = s.particles.len();
-        s.resize(160, 50);
-        assert!(s.particles.len() > before);
+    fn resize_adjusts_particle_count_both_directions() {
+        let mut grow = DriftState::new(40, 20, 1);
+        let grow_before = grow.particles.len();
+        grow.resize(160, 50);
+        assert!(grow.particles.len() > grow_before, "grow should add particles");
+
+        let mut shrink = DriftState::new(160, 50, 1);
+        let shrink_before = shrink.particles.len();
+        shrink.resize(40, 20);
+        assert!(shrink.particles.len() < shrink_before, "shrink should drop particles");
+    }
+
+    #[test]
+    fn resize_to_zero_clears_particles() {
+        let mut s = DriftState::new(80, 24, 1);
+        assert!(!s.particles.is_empty());
+        s.resize(0, 0);
+        assert!(s.particles.is_empty());
+        // Subsequent tick on zero size must not panic.
+        s.tick(0, 0, std::time::Duration::from_millis(50));
     }
 }
