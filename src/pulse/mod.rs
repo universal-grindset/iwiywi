@@ -2,6 +2,8 @@
 //! Items come from multiple sources (today's readings, history, Big Book,
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
+pub mod bundled;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
