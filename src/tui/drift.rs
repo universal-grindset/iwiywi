@@ -119,6 +119,111 @@ impl DriftState {
     }
 }
 
+use ratatui::style::Color;
+
+pub fn lerp_color(from: Color, to: Color, t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    let (fr, fg, fb) = rgb(from);
+    let (tr, tg, tb) = rgb(to);
+    Color::Rgb(
+        (fr as f32 + (tr as f32 - fr as f32) * t) as u8,
+        (fg as f32 + (tg as f32 - fg as f32) * t) as u8,
+        (fb as f32 + (tb as f32 - fb as f32) * t) as u8,
+    )
+}
+
+fn rgb(c: Color) -> (u8, u8, u8) {
+    match c {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (128, 128, 128),
+    }
+}
+
+use crate::models::ClassifiedReading;
+use crate::tui::theme::Theme;
+use ratatui::{
+    layout::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Paragraph, Widget, Wrap},
+    Frame,
+};
+
+const TRAIL_CHARS: [&str; 4] = ["•", "·", "⋅", "."];
+
+pub fn render(
+    frame: &mut Frame,
+    state: &DriftState,
+    theme: &Theme,
+    reading: &ClassifiedReading,
+    reading_alpha: f32,
+) {
+    let area = frame.area();
+    let buf = frame.buffer_mut();
+
+    // Particles: draw trails oldest → newest so the head sits on top.
+    for p in &state.particles {
+        for (i, pos) in p.trail.iter().enumerate().rev() {
+            if let Some((x, y)) = pos {
+                if *x < area.width && *y < area.height {
+                    let ch = TRAIL_CHARS[i];
+                    let color = lerp_color(theme.border, theme.muted, 1.0 - (i as f32 / 4.0));
+                    buf[(area.x + *x, area.y + *y)]
+                        .set_symbol(ch)
+                        .set_style(Style::default().fg(color));
+                }
+            }
+        }
+        let hx = p.x as u16;
+        let hy = p.y as u16;
+        if hx < area.width && hy < area.height {
+            buf[(area.x + hx, area.y + hy)]
+                .set_symbol("•")
+                .set_style(Style::default().fg(theme.accent));
+        }
+    }
+
+    // Reading overlay
+    if reading_alpha <= 0.0 {
+        return;
+    }
+    let faded_accent = lerp_color(theme.border, theme.accent, reading_alpha);
+    let faded_body = lerp_color(theme.border, theme.body, reading_alpha);
+    let faded_muted = lerp_color(theme.border, theme.muted, reading_alpha);
+
+    let header = Line::from(vec![
+        Span::styled(
+            format!("Step {}", reading.step),
+            Style::default().fg(faded_accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("  ·  {}", reading.source),
+            Style::default().fg(faded_muted),
+        ),
+    ]);
+    let body = Line::from(Span::styled(
+        reading.text.clone(),
+        Style::default().fg(faded_body),
+    ));
+
+    let text = vec![header, Line::from(""), body];
+    let width = (area.width as f32 * 0.6).min(72.0) as u16;
+    let width = width.max(20);
+    let est_height: u16 = 3 + (reading.text.len() as u16 / width.max(1)) + 1;
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(est_height)) / 2;
+    let overlay = Rect {
+        x,
+        y,
+        width: width.min(area.width.saturating_sub(x.saturating_sub(area.x))),
+        height: est_height.min(area.height.saturating_sub(y.saturating_sub(area.y))),
+    };
+
+    Paragraph::new(text)
+        .wrap(Wrap { trim: false })
+        .render(overlay, buf);
+}
+
 fn wrap(v: f32, max: f32) -> f32 {
     if max <= 0.0 {
         return 0.0;
@@ -250,5 +355,21 @@ mod tests {
         assert!(s.particles.is_empty());
         // Subsequent tick on zero size must not panic.
         s.tick(0, 0, std::time::Duration::from_millis(50));
+    }
+
+    #[test]
+    fn lerp_color_endpoints() {
+        let a = ratatui::style::Color::Rgb(0, 0, 0);
+        let b = ratatui::style::Color::Rgb(200, 200, 200);
+        assert_eq!(lerp_color(a, b, 0.0), ratatui::style::Color::Rgb(0, 0, 0));
+        assert_eq!(lerp_color(a, b, 1.0), ratatui::style::Color::Rgb(200, 200, 200));
+    }
+
+    #[test]
+    fn lerp_color_midpoint() {
+        let a = ratatui::style::Color::Rgb(0, 0, 0);
+        let b = ratatui::style::Color::Rgb(100, 100, 100);
+        let mid = lerp_color(a, b, 0.5);
+        assert_eq!(mid, ratatui::style::Color::Rgb(50, 50, 50));
     }
 }
