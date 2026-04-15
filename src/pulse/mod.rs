@@ -109,6 +109,7 @@ pub fn order_from_env() -> Order {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
+    // Source-based: admit only one source.
     All,
     Today,
     History,
@@ -123,69 +124,106 @@ pub enum Focus {
     Favorites,
     Bill,
     Community,
+    // Content-based: admit all sources but post-filter individual items.
+    Short,        // body < 220 chars (quick reads)
+    Long,         // body > 420 chars (deeper meditations)
+    Surrender,    // step 1–3
+    Action,       // step 4–9
+    Maintenance,  // step 10–12
 }
 
 impl Focus {
-    pub const ALL_VARIANTS: [Focus; 14] = [
+    pub const ALL_VARIANTS: [Focus; 19] = [
         Focus::All, Focus::Today, Focus::History, Focus::BigBook, Focus::Prayers,
         Focus::Steps, Focus::Principles, Focus::Grapevine, Focus::Traditions,
         Focus::Concepts, Focus::Slogans, Focus::Favorites, Focus::Bill, Focus::Community,
+        Focus::Short, Focus::Long,
+        Focus::Surrender, Focus::Action, Focus::Maintenance,
     ];
 
     pub fn label(&self) -> &'static str {
         match self {
-            Focus::All        => "all",
-            Focus::Today      => "today",
-            Focus::History    => "history",
-            Focus::BigBook    => "big_book",
-            Focus::Prayers    => "prayers",
-            Focus::Steps      => "steps",
-            Focus::Principles => "principles",
-            Focus::Grapevine  => "grapevine",
-            Focus::Traditions => "traditions",
-            Focus::Concepts   => "concepts",
-            Focus::Slogans    => "slogans",
-            Focus::Favorites  => "favorites",
-            Focus::Bill       => "bill",
-            Focus::Community  => "community",
+            Focus::All         => "all",
+            Focus::Today       => "today",
+            Focus::History     => "history",
+            Focus::BigBook     => "big_book",
+            Focus::Prayers     => "prayers",
+            Focus::Steps       => "steps",
+            Focus::Principles  => "principles",
+            Focus::Grapevine   => "grapevine",
+            Focus::Traditions  => "traditions",
+            Focus::Concepts    => "concepts",
+            Focus::Slogans     => "slogans",
+            Focus::Favorites   => "favorites",
+            Focus::Bill        => "bill",
+            Focus::Community   => "community",
+            Focus::Short       => "short",
+            Focus::Long        => "long",
+            Focus::Surrender   => "surrender",
+            Focus::Action      => "action",
+            Focus::Maintenance => "maintenance",
         }
     }
 
     pub fn parse(raw: Option<&str>) -> Focus {
         match raw {
-            Some("today")      => Focus::Today,
-            Some("history")    => Focus::History,
-            Some("big_book")   => Focus::BigBook,
-            Some("prayers")    => Focus::Prayers,
-            Some("steps")      => Focus::Steps,
-            Some("principles") => Focus::Principles,
-            Some("grapevine")  => Focus::Grapevine,
-            Some("traditions") => Focus::Traditions,
-            Some("concepts")   => Focus::Concepts,
-            Some("slogans")    => Focus::Slogans,
-            Some("favorites")  => Focus::Favorites,
-            Some("bill")       => Focus::Bill,
-            Some("community")  => Focus::Community,
+            Some("today")       => Focus::Today,
+            Some("history")     => Focus::History,
+            Some("big_book")    => Focus::BigBook,
+            Some("prayers")     => Focus::Prayers,
+            Some("steps")       => Focus::Steps,
+            Some("principles")  => Focus::Principles,
+            Some("grapevine")   => Focus::Grapevine,
+            Some("traditions")  => Focus::Traditions,
+            Some("concepts")    => Focus::Concepts,
+            Some("slogans")     => Focus::Slogans,
+            Some("favorites")   => Focus::Favorites,
+            Some("bill")        => Focus::Bill,
+            Some("community")   => Focus::Community,
+            Some("short")       => Focus::Short,
+            Some("long")        => Focus::Long,
+            Some("surrender")   => Focus::Surrender,
+            Some("action")      => Focus::Action,
+            Some("maintenance") => Focus::Maintenance,
             _ => Focus::All,
         }
     }
 
-    /// True if the given source name passes this focus filter.
+    /// True if the given source name passes this focus filter. For
+    /// content-based focuses, all sources pass — filtering happens at the
+    /// item level via `admits_item`.
     pub fn admits(&self, source_name: &str) -> bool {
         match self {
-            Focus::All        => true,
-            Focus::Today      => source_name == "today",
-            Focus::History    => source_name == "historical",
-            Focus::BigBook    => source_name == "big_book",
-            Focus::Prayers    => source_name == "prayers",
+            Focus::All         => true,
+            Focus::Today       => source_name == "today",
+            Focus::History     => source_name == "historical",
+            Focus::BigBook     => source_name == "big_book",
+            Focus::Prayers     => source_name == "prayers",
             Focus::Steps | Focus::Principles => source_name == "step_explainers",
-            Focus::Grapevine  => source_name == "grapevine",
-            Focus::Traditions => source_name == "traditions",
-            Focus::Concepts   => source_name == "concepts",
-            Focus::Slogans    => source_name == "slogans",
-            Focus::Favorites  => source_name == "favorites",
-            Focus::Bill       => source_name == "bill",
-            Focus::Community  => source_name == "community",
+            Focus::Grapevine   => source_name == "grapevine",
+            Focus::Traditions  => source_name == "traditions",
+            Focus::Concepts    => source_name == "concepts",
+            Focus::Slogans     => source_name == "slogans",
+            Focus::Favorites   => source_name == "favorites",
+            Focus::Bill        => source_name == "bill",
+            Focus::Community   => source_name == "community",
+            // Content-based focuses let every source through; the item
+            // filter is the one that narrows the pool.
+            Focus::Short | Focus::Long
+                | Focus::Surrender | Focus::Action | Focus::Maintenance => true,
+        }
+    }
+
+    /// True if the given item should be kept. Only content-based focuses
+    /// narrow further here — source-based focuses already filtered above.
+    pub fn admits_item(&self, item: &PulseItem) -> bool {
+        match self {
+            Focus::Short => item.body.chars().count() < 220,
+            Focus::Long  => item.body.chars().count() > 420,
+            Focus::Surrender   => item.step.is_some_and(|s| (1..=3).contains(&s)),
+            Focus::Action      => item.step.is_some_and(|s| (4..=9).contains(&s)),
+            Focus::Maintenance => item.step.is_some_and(|s| (10..=12).contains(&s)),
+            _ => true,
         }
     }
 }
@@ -224,6 +262,7 @@ impl PulseMixer {
         let mut seen: std::collections::HashSet<[u8; 32]> = std::collections::HashSet::new();
         for src in sources.iter().filter(|s| focus.admits(s.name())) {
             for item in src.items() {
+                if !focus.admits_item(item) { continue; }
                 if let Some(want) = filter_step {
                     if item.step != Some(want) { continue; }
                 }
@@ -303,6 +342,78 @@ impl PulseMixer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_focus_keeps_only_brief_items() {
+        let short = PulseItem {
+            kind: PulseKind::Prayer, step: None,
+            label: "L".to_string(),
+            body: "Be still.".to_string(),
+        };
+        let long = PulseItem {
+            kind: PulseKind::Prayer, step: None,
+            label: "L".to_string(),
+            body: "x".repeat(500),
+        };
+        assert!(Focus::Short.admits_item(&short));
+        assert!(!Focus::Short.admits_item(&long));
+    }
+
+    #[test]
+    fn long_focus_keeps_only_lengthy_items() {
+        let short = PulseItem {
+            kind: PulseKind::Prayer, step: None,
+            label: "L".to_string(),
+            body: "Be still.".to_string(),
+        };
+        let long = PulseItem {
+            kind: PulseKind::Prayer, step: None,
+            label: "L".to_string(),
+            body: "x".repeat(500),
+        };
+        assert!(!Focus::Long.admits_item(&short));
+        assert!(Focus::Long.admits_item(&long));
+    }
+
+    #[test]
+    fn step_group_focuses_partition_steps_1_through_12() {
+        for n in 1..=12u8 {
+            let item = PulseItem {
+                kind: PulseKind::StepText, step: Some(n),
+                label: "L".to_string(), body: "b".to_string(),
+            };
+            let surrender = Focus::Surrender.admits_item(&item);
+            let action    = Focus::Action.admits_item(&item);
+            let maintain  = Focus::Maintenance.admits_item(&item);
+            // Exactly one group must accept each step.
+            let count = [surrender, action, maintain]
+                .into_iter().filter(|b| *b).count();
+            assert_eq!(count, 1, "step {n} matched {count} groups, want 1");
+        }
+    }
+
+    #[test]
+    fn content_focuses_reject_items_without_step_for_step_groups() {
+        let nostep = PulseItem {
+            kind: PulseKind::Prayer, step: None,
+            label: "L".to_string(), body: "b".to_string(),
+        };
+        assert!(!Focus::Surrender.admits_item(&nostep));
+        assert!(!Focus::Action.admits_item(&nostep));
+        assert!(!Focus::Maintenance.admits_item(&nostep));
+    }
+
+    #[test]
+    fn focus_all_variants_length_matches_enum() {
+        assert_eq!(Focus::ALL_VARIANTS.len(), 19);
+    }
+
+    #[test]
+    fn every_focus_label_round_trips() {
+        for f in Focus::ALL_VARIANTS {
+            assert_eq!(Focus::parse(Some(f.label())), f);
+        }
+    }
 
     #[test]
     fn pulse_item_round_trips_json() {

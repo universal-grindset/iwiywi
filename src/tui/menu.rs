@@ -2,7 +2,7 @@
 //! Five rows: Palette, Pattern, Order, Focus, Pulse secs. Changes apply live.
 
 use ratatui::{
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap},
@@ -10,6 +10,15 @@ use ratatui::{
 };
 
 use crate::tui::palette::Palette;
+
+/// Small ASCII banner rendered at the top of the settings overlay.
+const BANNER: &[&str] = &[
+    "╭─────────────────────╮",
+    "│   i w i y w i       │",
+    "│   it works if you   │",
+    "│   work it · v0.6    │",
+    "╰─────────────────────╯",
+];
 
 pub const ROW_COUNT: usize = 6;
 
@@ -60,7 +69,7 @@ pub fn render(
     let buf = frame.buffer_mut();
 
     let width: u16 = 40;
-    let height: u16 = 10;
+    let height: u16 = 16;
     if area.width < width || area.height < height { return; }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -74,12 +83,39 @@ pub fn render(
     }
 
     let block = Block::default()
-        .title(" Settings ")
+        .title(" settings ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(palette.accent));
     let inner = block.inner(rect);
     Widget::render(block, rect, buf);
+
+    // Banner occupies the first `BANNER.len()` rows of the inner area,
+    // centered horizontally. Rendered with the accent color so it pops.
+    let banner_lines: Vec<Line> = BANNER
+        .iter()
+        .map(|s| Line::from(Span::styled(
+            (*s).to_string(),
+            Style::default().fg(palette.accent),
+        )))
+        .collect();
+    let banner_rect = Rect {
+        x: inner.x,
+        y: inner.y,
+        width: inner.width,
+        height: BANNER.len() as u16,
+    };
+    Paragraph::new(banner_lines)
+        .alignment(Alignment::Center)
+        .render(banner_rect, buf);
+
+    // Content (settings rows + hint) starts one row below the banner.
+    let content_rect = Rect {
+        x: inner.x,
+        y: inner.y + BANNER.len() as u16 + 1,
+        width: inner.width,
+        height: inner.height.saturating_sub(BANNER.len() as u16 + 1),
+    };
 
     let mut lines: Vec<Line> = Vec::with_capacity(ROW_COUNT + 2);
     for (i, value) in values.iter().enumerate() {
@@ -110,7 +146,7 @@ pub fn render(
 
     Paragraph::new(lines)
         .wrap(Wrap { trim: false })
-        .render(inner, buf);
+        .render(content_rect, buf);
 }
 
 #[cfg(test)]

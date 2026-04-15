@@ -421,6 +421,19 @@ impl App {
                 let next = pulse::cycle(&Focus::ALL_VARIANTS, self.focus, delta);
                 self.focus = next;
                 self.rebuild_mixer();
+                // The menu overlay covers much of the pulse, so the Focus
+                // change wasn't visually obvious before. Jump to a random
+                // item in the filtered pool AND flash a toast with the
+                // new count so the effect is unmistakable.
+                let seed = self.next_seed();
+                self.mixer.random_jump(seed);
+                let count = self.mixer.len();
+                self.toast = Some((
+                    format!("Focus: {} · {count} item{}",
+                        next.label(), if count == 1 { "" } else { "s" }),
+                    Instant::now(),
+                    Duration::from_millis(2500),
+                ));
             }
             menu::Row::PulseSecs => {
                 let current = self.pulse_secs.map_or(0u64, |d| d.as_secs());
