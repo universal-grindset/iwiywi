@@ -668,7 +668,7 @@ pub fn run(
         spawn_startup_summary(client, cfg.clone(), today, step_of_day, startup_tx);
     }
 
-    loop {
+    'run: loop {
         let size = terminal.size()?;
         // Expire the toast once its per-toast TTL elapses.
         if let Some((_, t, ttl)) = &app.toast {
@@ -767,6 +767,12 @@ pub fn run(
         // perceptible input lag.
         let poll_ms = if app.pattern.is_animated() { 80 } else { 200 };
         if event::poll(Duration::from_millis(poll_ms))? {
+            // Drain all pending events in one pass before redrawing.
+            // Without this, holding a key (n/p/r) produces ~30 events/sec,
+            // each triggering a full frame render and queuing up behind the
+            // next one — perceived as "slow" held-key response. The drain
+            // loop collapses a batch of held-key events into a single draw.
+            loop {
             let ev = event::read()?;
             if let Event::Mouse(MouseEvent { kind, .. }) = ev {
                 if let MouseEventKind::Down(MouseButton::Left) = kind {
@@ -826,7 +832,7 @@ pub fn run(
                     }
                 }
                 match key.code {
-                    KeyCode::Char('q') => break,
+                    KeyCode::Char('q') => break 'run,
                     KeyCode::Char('m') => app.menu_open = true,
                     KeyCode::Char('?') => app.help_open = true,
                     KeyCode::Char('n') => app.next(),
@@ -875,6 +881,11 @@ pub fn run(
                     _ => {}
                 }
             }
+            // Drain continuation: if more events are queued, handle them
+            // immediately without redrawing. Break back up to the outer
+            // loop to draw once after the batch.
+            if !event::poll(Duration::from_millis(0))? { break; }
+            } // end drain loop
         } else {
             if let Some(state) = app.drift.as_mut() {
                 state.tick(size.width, size.height);
