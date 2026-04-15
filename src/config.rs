@@ -82,6 +82,21 @@ pub fn pulse_secs() -> Option<std::time::Duration> {
     parse_pulse_secs(std::env::var("IWIYWI_PULSE_SECS").ok().as_deref())
 }
 
+/// Parse `IWIYWI_SOBER_SINCE=YYYY-MM-DD` into the number of whole days
+/// between that date and today (local time). Returns `None` when the env
+/// var is unset or unparseable. Negative values — a date in the future —
+/// are returned as-is and treated as "don't show" by the caller.
+pub fn parse_sobriety_days(raw: Option<&str>, today: chrono::NaiveDate) -> Option<i64> {
+    let s = raw?;
+    let start = chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok()?;
+    Some((today - start).num_days())
+}
+
+pub fn sobriety_days() -> Option<i64> {
+    let raw = std::env::var("IWIYWI_SOBER_SINCE").ok();
+    parse_sobriety_days(raw.as_deref(), chrono::Local::now().date_naive())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,6 +2,7 @@ pub mod drift;
 pub mod menu;
 pub mod palette;
 pub mod pattern;
+pub mod status;
 pub mod widgets;
 
 use anyhow::Result;
@@ -36,6 +37,10 @@ pub struct App {
     pub menu_open: bool,
     /// Which row of the settings menu is highlighted (0..menu::ROW_COUNT).
     pub menu_cursor: usize,
+    /// Days since `IWIYWI_SOBER_SINCE`, computed at startup. None if unset.
+    pub sobriety_days: Option<i64>,
+    /// When true, auto-advance is suspended (`space` toggles).
+    pub paused: bool,
 }
 
 impl App {
@@ -231,12 +236,30 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         drift,
         menu_open: false,
         menu_cursor: 0,
+        sobriety_days: config::sobriety_days(),
+        paused: false,
     };
 
     loop {
         let size = terminal.size()?;
         terminal.draw(|f| {
             widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref());
+            let progress = if app.paused {
+                None
+            } else {
+                app.pulse_secs.map(|interval| {
+                    (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
+                })
+            };
+            let status_line = status::StatusLine {
+                mixer: &app.mixer,
+                focus: app.focus,
+                focus_step: app.focus_step,
+                pulse_progress: progress,
+                sobriety_days: app.sobriety_days,
+                paused: app.paused,
+            };
+            status::render(f, &app.palette, &status_line);
             if app.menu_open {
                 menu::render(f, &app.palette, app.menu_cursor, app.current_menu_values());
             }
@@ -264,6 +287,10 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                     KeyCode::Char('n') => app.next(),
                     KeyCode::Char('p') => app.prev(),
                     KeyCode::Char('r') => app.random(),
+                    KeyCode::Char(' ') => {
+                        app.paused = !app.paused;
+                        if !app.paused { app.last_advance = Instant::now(); }
+                    }
                     KeyCode::Char('1') => app.set_step_focus(1),
                     KeyCode::Char('2') => app.set_step_focus(2),
                     KeyCode::Char('3') => app.set_step_focus(3),
@@ -284,9 +311,11 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
             if let Some(state) = app.drift.as_mut() {
                 state.tick(size.width, size.height);
             }
-            if let Some(interval) = app.pulse_secs {
-                if app.last_advance.elapsed() >= interval {
-                    app.next();
+            if !app.paused {
+                if let Some(interval) = app.pulse_secs {
+                    if app.last_advance.elapsed() >= interval {
+                        app.next();
+                    }
                 }
             }
         }
@@ -332,6 +361,8 @@ mod tests {
             drift: None,
             menu_open: false,
             menu_cursor: 0,
+            sobriety_days: None,
+            paused: false,
         }
     }
 
