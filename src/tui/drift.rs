@@ -199,7 +199,7 @@ pub fn render(
             item.label.clone(),
             Style::default().fg(faded_accent).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(format!("  ·  {:?}", item.kind), Style::default().fg(faded_muted)),
+        Span::styled(format!("  ·  {}", item.kind.display_label()), Style::default().fg(faded_muted)),
     ]);
     let body = Line::from(Span::styled(
         item.body.clone(),

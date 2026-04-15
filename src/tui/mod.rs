@@ -193,7 +193,9 @@ impl App {
         let mixer = crate::pulse::PulseMixer::from_sources(&self.pulse_sources, filter_step);
         if mixer.is_empty() { return; }
         let seed = self.last_input.elapsed().as_nanos() as u32;
-        self.drift = Some(drift::DriftState::new(width, height, seed, mixer));
+        let mut state = drift::DriftState::new(width, height, seed, mixer);
+        state.mixer.random_jump(seed);
+        self.drift = Some(state);
         self.mode = Mode::Drift;
     }
 
@@ -506,9 +508,9 @@ mod tests {
     }
 
     #[test]
-    fn maybe_enter_drift_noop_when_readings_empty() {
+    fn maybe_enter_drift_noop_when_pulse_sources_empty() {
         let mut app = fixture_app();
-        app.readings.clear();
+        // pulse_sources is empty by default in fixture_app, so the mixer will be empty.
         app.idle_threshold = Some(std::time::Duration::from_millis(1));
         std::thread::sleep(std::time::Duration::from_millis(10));
         app.maybe_enter_drift(80, 24);

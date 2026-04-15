@@ -18,6 +18,19 @@ pub enum PulseKind {
     Principle,
 }
 
+impl PulseKind {
+    pub fn display_label(&self) -> &'static str {
+        match self {
+            PulseKind::TodayReading      => "Today",
+            PulseKind::HistoricalReading => "From the archive",
+            PulseKind::BigBookQuote      => "Big Book",
+            PulseKind::Prayer            => "Prayer",
+            PulseKind::StepText          => "Step",
+            PulseKind::Principle         => "Principle",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PulseItem {
     pub kind: PulseKind,
@@ -229,5 +242,15 @@ mod tests {
         let mixer = PulseMixer::from_sources(&[], None);
         assert_eq!(mixer.len(), 0);
         assert!(mixer.current().is_none());
+    }
+
+    #[test]
+    fn pulse_kind_display_labels_are_user_friendly() {
+        assert_eq!(PulseKind::TodayReading.display_label(), "Today");
+        assert_eq!(PulseKind::HistoricalReading.display_label(), "From the archive");
+        assert_eq!(PulseKind::BigBookQuote.display_label(), "Big Book");
+        assert_eq!(PulseKind::Prayer.display_label(), "Prayer");
+        assert_eq!(PulseKind::StepText.display_label(), "Step");
+        assert_eq!(PulseKind::Principle.display_label(), "Principle");
     }
 }
