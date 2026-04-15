@@ -13,6 +13,15 @@ use crate::tui::{App, Mode, Tab};
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
 
+    if let Mode::Drift = &app.mode {
+        if let Some(state) = &app.drift {
+            let reading = &app.readings[state.reading_idx % app.readings.len()];
+            let alpha = crate::tui::drift::reading_alpha(state.reading_phase_start.elapsed());
+            crate::tui::drift::render(frame, state, &app.theme, reading, alpha);
+            return;
+        }
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
