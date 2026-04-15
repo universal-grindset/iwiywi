@@ -70,12 +70,18 @@ impl App {
     pub fn set_step_focus(&mut self, step: u8) {
         self.focus_step = Some(step);
         self.rebuild_mixer();
+        // Jump to a random item in the filtered mixer so the user gets
+        // immediate visual feedback that focus changed (not the same item).
+        let s = self.next_seed();
+        self.mixer.random_jump(s);
         self.last_advance = Instant::now();
     }
 
     pub fn clear_step_focus(&mut self) {
         self.focus_step = None;
         self.rebuild_mixer();
+        let s = self.next_seed();
+        self.mixer.random_jump(s);
         self.last_advance = Instant::now();
     }
 
@@ -241,14 +247,16 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                 if key.kind != KeyEventKind::Press { continue; }
                 if app.menu_open {
                     match key.code {
-                        KeyCode::Char('m') | KeyCode::Esc | KeyCode::Char('q') => app.menu_open = false,
-                        KeyCode::Up    => app.menu_row_prev(),
-                        KeyCode::Down  => app.menu_row_next(),
-                        KeyCode::Left  => app.menu_cycle(-1, size.width, size.height),
-                        KeyCode::Right => app.menu_cycle( 1, size.width, size.height),
-                        _ => {}
+                        KeyCode::Char('m') | KeyCode::Esc => { app.menu_open = false; continue; }
+                        KeyCode::Up    => { app.menu_row_prev(); continue; }
+                        KeyCode::Down  => { app.menu_row_next(); continue; }
+                        KeyCode::Left  => { app.menu_cycle(-1, size.width, size.height); continue; }
+                        KeyCode::Right => { app.menu_cycle( 1, size.width, size.height); continue; }
+                        // Any other key closes the menu and falls through to
+                        // the normal handler below (so `q`, `n`, `r`, step
+                        // focus digits all still work from within the menu).
+                        _ => { app.menu_open = false; }
                     }
-                    continue;
                 }
                 match key.code {
                     KeyCode::Char('q') => break,

@@ -12,13 +12,14 @@ use std::time::Instant;
 
 use crate::tui::palette::Palette;
 
-const PARTICLES_MIN: usize = 20;
-const PARTICLES_MAX: usize = 120;
-const AREA_PER_PARTICLE: usize = 30;
-const FIELD_SCALE: f64 = 0.06;
-const TIME_SCALE: f64 = 0.25;
-const MAX_STEP: f32 = 0.8;
-const TRAIL_CHARS: [&str; 4] = ["•", "·", "⋅", "."];
+const PARTICLES_MIN: usize = 40;
+const PARTICLES_MAX: usize = 240;
+const AREA_PER_PARTICLE: usize = 14;
+const FIELD_SCALE: f64 = 0.05;
+const TIME_SCALE: f64 = 0.35;
+const MAX_STEP: f32 = 1.1;
+// Trail glyphs — index 0 is the newest (brightest), index 3 is the oldest.
+const TRAIL_CHARS: [&str; 4] = ["●", "•", "·", "⋅"];
 
 pub struct Particle {
     pub x: f32,
@@ -94,18 +95,21 @@ impl DriftState {
 }
 
 /// Draw the particles + trails into the buffer. Skips rendering when the
-/// area is too small to make the effect meaningful.
+/// area is too small to make the effect meaningful. Trails fade over four
+/// segments: newest two are drawn in the palette accent, oldest two in the
+/// muted color, giving each particle visible momentum.
 pub fn draw(buf: &mut Buffer, area: Rect, state: &DriftState, palette: &Palette) {
     if area.width < 40 || area.height < 15 { return; }
-    let trail_style = Style::default().fg(palette.muted);
-    let head_style = Style::default().fg(palette.accent);
+    let bright_style = Style::default().fg(palette.accent);
+    let dim_style = Style::default().fg(palette.muted);
     for p in &state.particles {
         for (i, pos) in p.trail.iter().enumerate().rev() {
             if let Some((x, y)) = pos {
                 if *x < area.width && *y < area.height {
+                    let style = if i < 2 { bright_style } else { dim_style };
                     buf[(area.x + *x, area.y + *y)]
                         .set_symbol(TRAIL_CHARS[i])
-                        .set_style(trail_style);
+                        .set_style(style);
                 }
             }
         }
@@ -113,8 +117,8 @@ pub fn draw(buf: &mut Buffer, area: Rect, state: &DriftState, palette: &Palette)
         let hy = p.y as u16;
         if hx < area.width && hy < area.height {
             buf[(area.x + hx, area.y + hy)]
-                .set_symbol("•")
-                .set_style(head_style);
+                .set_symbol("●")
+                .set_style(bright_style);
         }
     }
 }
