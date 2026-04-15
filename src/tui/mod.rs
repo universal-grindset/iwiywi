@@ -797,6 +797,7 @@ pub fn run(
             // loop collapses a batch of held-key events into a single draw.
             loop {
             let ev = event::read()?;
+            'handled: {
             if let Event::Mouse(MouseEvent { kind, .. }) = ev {
                 if let MouseEventKind::Down(MouseButton::Left) = kind {
                     // Only clicks reset the idle timer — mouse-move events
@@ -815,16 +816,16 @@ pub fn run(
                         app.copy_current();
                     }
                 }
-                continue;
+                break 'handled;
             }
             if let Event::Key(key) = ev {
-                if key.kind != KeyEventKind::Press { continue; }
+                if key.kind != KeyEventKind::Press { break 'handled; }
                 // Any keypress wakes the UI from idle dim-down and resets
                 // the idle timer.
                 app.last_input = Instant::now();
                 if app.help_open {
                     app.help_open = false;
-                    continue;
+                    break 'handled;
                 }
                 if app.ai_overlay.is_some() {
                     match key.code {
@@ -839,15 +840,15 @@ pub fn run(
                         }
                         _ => {}
                     }
-                    continue;
+                    break 'handled;
                 }
                 if app.menu_open {
                     match key.code {
-                        KeyCode::Char('m') | KeyCode::Esc => { app.menu_open = false; continue; }
-                        KeyCode::Up    => { app.menu_row_prev(); continue; }
-                        KeyCode::Down  => { app.menu_row_next(); continue; }
-                        KeyCode::Left  => { app.menu_cycle(-1, size.width, size.height); continue; }
-                        KeyCode::Right => { app.menu_cycle( 1, size.width, size.height); continue; }
+                        KeyCode::Char('m') | KeyCode::Esc => { app.menu_open = false; break 'handled; }
+                        KeyCode::Up    => { app.menu_row_prev(); break 'handled; }
+                        KeyCode::Down  => { app.menu_row_next(); break 'handled; }
+                        KeyCode::Left  => { app.menu_cycle(-1, size.width, size.height); break 'handled; }
+                        KeyCode::Right => { app.menu_cycle( 1, size.width, size.height); break 'handled; }
                         // Any other key closes the menu and falls through to
                         // the normal handler below (so `q`, `n`, `r`, step
                         // focus digits all still work from within the menu).
@@ -904,6 +905,7 @@ pub fn run(
                     _ => {}
                 }
             }
+            } // end 'handled block
             // Drain continuation: if more events are queued, handle them
             // immediately without redrawing. Break back up to the outer
             // loop to draw once after the batch.
