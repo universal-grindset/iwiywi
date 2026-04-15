@@ -23,6 +23,7 @@ ratatui = "0.28"
 crossterm = "0.28"
 qrcode = "0.14"
 dirs = "5"
+sha2 = "0.10"
 
 [dev-dependencies]
 mockito = "1"
