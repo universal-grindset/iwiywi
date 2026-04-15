@@ -1,5 +1,7 @@
+pub mod ai;
 pub mod ai_extract;
 pub mod classify;
+pub mod reddit;
 pub mod scraper;
 
 use anyhow::{Context, Result};

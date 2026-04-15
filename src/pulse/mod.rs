@@ -2,10 +2,13 @@
 //! Items come from multiple sources (today's readings, history, Big Book,
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
+pub mod bill;
 pub mod bundled;
+pub mod community;
 pub mod favorites;
 pub mod grapevine;
 pub mod historical;
+pub mod summary;
 pub mod today;
 
 // Helper hooks used by the settings menu to cycle through value rings.
@@ -31,6 +34,8 @@ pub enum PulseKind {
     Slogan,
     Grapevine,
     Favorite,
+    BillReflection,
+    Community,
 }
 
 impl PulseKind {
@@ -47,6 +52,8 @@ impl PulseKind {
             PulseKind::Slogan            => "Slogan",
             PulseKind::Grapevine         => "Grapevine",
             PulseKind::Favorite          => "Favorite",
+            PulseKind::BillReflection    => "Bill W. — AI reflection",
+            PulseKind::Community         => "From the rooms (paraphrased)",
         }
     }
 }
@@ -114,13 +121,15 @@ pub enum Focus {
     Concepts,
     Slogans,
     Favorites,
+    Bill,
+    Community,
 }
 
 impl Focus {
-    pub const ALL_VARIANTS: [Focus; 12] = [
+    pub const ALL_VARIANTS: [Focus; 14] = [
         Focus::All, Focus::Today, Focus::History, Focus::BigBook, Focus::Prayers,
         Focus::Steps, Focus::Principles, Focus::Grapevine, Focus::Traditions,
-        Focus::Concepts, Focus::Slogans, Focus::Favorites,
+        Focus::Concepts, Focus::Slogans, Focus::Favorites, Focus::Bill, Focus::Community,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -137,6 +146,8 @@ impl Focus {
             Focus::Concepts   => "concepts",
             Focus::Slogans    => "slogans",
             Focus::Favorites  => "favorites",
+            Focus::Bill       => "bill",
+            Focus::Community  => "community",
         }
     }
 
@@ -153,6 +164,8 @@ impl Focus {
             Some("concepts")   => Focus::Concepts,
             Some("slogans")    => Focus::Slogans,
             Some("favorites")  => Focus::Favorites,
+            Some("bill")       => Focus::Bill,
+            Some("community")  => Focus::Community,
             _ => Focus::All,
         }
     }
@@ -171,6 +184,8 @@ impl Focus {
             Focus::Concepts   => source_name == "concepts",
             Focus::Slogans    => source_name == "slogans",
             Focus::Favorites  => source_name == "favorites",
+            Focus::Bill       => source_name == "bill",
+            Focus::Community  => source_name == "community",
         }
     }
 }

@@ -11,10 +11,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const DEFAULT_PROMPT: &str = "One thing to notice today.";
+
 const TEMPLATE: &str = "\
 # iwiywi journal — {date}
 
-_One thing to notice today._
+_{prompt}_
 
 ";
 
@@ -27,22 +29,25 @@ fn editor_command() -> Option<String> {
     Some("vi".to_string())
 }
 
-fn ensure_entry(path: &Path) -> Result<()> {
+fn ensure_entry(path: &Path, prompt: Option<&str>) -> Result<()> {
     if path.exists() { return Ok(()); }
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let date = chrono::Local::now().format("%A, %B %-d, %Y").to_string();
-    let body = TEMPLATE.replace("{date}", &date);
+    let prompt = prompt.unwrap_or(DEFAULT_PROMPT);
+    let body = TEMPLATE.replace("{date}", &date).replace("{prompt}", prompt);
     std::fs::write(path, body)?;
     Ok(())
 }
 
 /// Suspend the TUI, open today's journal entry in `$EDITOR`, then resume.
-pub fn open_today(journal_dir: PathBuf) -> Result<PathBuf> {
+/// `seed` (optional) replaces the default `One thing to notice today.` line
+/// when the entry file doesn't already exist.
+pub fn open_today(journal_dir: PathBuf, seed: Option<String>) -> Result<PathBuf> {
     let filename = format!("{}.md", chrono::Local::now().format("%Y-%m-%d"));
     let path = journal_dir.join(filename);
-    ensure_entry(&path)?;
+    ensure_entry(&path, seed.as_deref())?;
 
     let cmd = editor_command().unwrap_or_else(|| "vi".to_string());
 
@@ -78,10 +83,20 @@ mod tests {
     fn ensure_entry_creates_with_template_when_missing() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("2026-04-15.md");
-        ensure_entry(&path).unwrap();
+        ensure_entry(&path, None).unwrap();
         let body = std::fs::read_to_string(&path).unwrap();
         assert!(body.starts_with("# iwiywi journal"));
         assert!(body.contains("One thing to notice today"));
+    }
+
+    #[test]
+    fn ensure_entry_uses_seed_prompt_when_provided() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("2026-04-15.md");
+        ensure_entry(&path, Some("Where did willingness show up today?")).unwrap();
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("Where did willingness show up today?"));
+        assert!(!body.contains("One thing to notice today"));
     }
 
     #[test]
@@ -89,7 +104,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("2026-04-15.md");
         std::fs::write(&path, "my notes").unwrap();
-        ensure_entry(&path).unwrap();
+        ensure_entry(&path, None).unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "my notes");
     }
 }

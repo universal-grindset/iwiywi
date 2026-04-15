@@ -1,42 +1,10 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::config::Config;
+use crate::fetch::ai::{post_chat, ChatOpts};
 use crate::models::{ClassifiedReading, RawReading};
-
-#[derive(Serialize)]
-struct ChatRequest<'a> {
-    model: &'a str,
-    messages: Vec<Message<'a>>,
-    response_format: ResponseFormat,
-}
-
-#[derive(Serialize)]
-struct Message<'a> {
-    role: &'a str,
-    content: String,
-}
-
-#[derive(Serialize)]
-struct ResponseFormat {
-    r#type: &'static str,
-}
-
-#[derive(Deserialize)]
-struct ChatResponse {
-    choices: Vec<Choice>,
-}
-
-#[derive(Deserialize)]
-struct Choice {
-    message: ChoiceMessage,
-}
-
-#[derive(Deserialize)]
-struct ChoiceMessage {
-    content: String,
-}
 
 #[derive(Deserialize)]
 struct StepResult {
@@ -54,48 +22,15 @@ pub async fn classify(
     config: &Config,
     reading: RawReading,
 ) -> Result<ClassifiedReading> {
-    let request = ChatRequest {
-        model: &config.ai.model,
-        messages: vec![
-            Message {
-                role: "system",
-                content: SYSTEM_PROMPT.to_string(),
-            },
-            Message {
-                role: "user",
-                content: reading.text.clone(),
-            },
-        ],
-        response_format: ResponseFormat {
-            r#type: "json_object",
-        },
+    let opts = ChatOpts {
+        max_tokens: Some(256),
+        temperature: Some(0.3),
+        json_mode: true,
     };
-
-    let url = match &config.ai.api_version {
-        Some(v) => format!("{}/chat/completions?api-version={v}", config.ai.gateway_url),
-        None => format!("{}/chat/completions", config.ai.gateway_url),
-    };
-    let req = client.post(&url).json(&request);
-    let req = match &config.ai.api_version {
-        // Azure OpenAI: api-key header.
-        Some(_) => req.header(
-            "api-key",
-            std::env::var("AZURE_OPENAI_API_KEY").context("AZURE_OPENAI_API_KEY not set")?,
-        ),
-        // OpenAI / Vercel AI Gateway: bearer auth.
-        None => req.bearer_auth(
-            std::env::var("VERCEL_AI_GATEWAY_TOKEN")
-                .context("VERCEL_AI_GATEWAY_TOKEN not set")?,
-        ),
-    };
-    let resp = req.send().await.context("calling AI gateway")?;
-
-    let chat: ChatResponse = resp.json().await.context("parsing AI response")?;
-    let content = &chat.choices[0].message.content;
+    let content = post_chat(client, config, SYSTEM_PROMPT, &reading.text, opts).await?;
     let result: StepResult =
-        serde_json::from_str(content).context("parsing step JSON from AI response")?;
+        serde_json::from_str(&content).context("parsing step JSON from AI response")?;
 
-    // Clamp step to valid range
     let step = result.step.clamp(1, 12);
 
     Ok(ClassifiedReading {
@@ -184,7 +119,7 @@ mod tests {
             url: "http://test".to_string(),
         };
         let result = classify(&client, &config, raw).await.unwrap();
-        assert_eq!(result.step, 12); // clamped from 99
+        assert_eq!(result.step, 12);
     }
 
     #[tokio::test]
@@ -216,7 +151,7 @@ mod tests {
             url: "http://test".to_string(),
         };
         let result = classify(&client, &config, raw).await.unwrap();
-        assert_eq!(result.step, 1); // clamped from 0
+        assert_eq!(result.step, 1);
     }
 
     #[tokio::test]
@@ -247,7 +182,7 @@ mod tests {
         };
 
         let result = classify(&client, &config, raw).await;
-        assert!(result.is_err()); // Should fail to parse non-numeric step
+        assert!(result.is_err());
     }
 
     #[tokio::test]

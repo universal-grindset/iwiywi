@@ -8,6 +8,7 @@ mod tui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use chrono::Datelike;
 
 #[derive(Parser)]
 #[command(
@@ -31,7 +32,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    config::load_env().ok(); // load .env if present, ignore if missing
+    config::load_env().ok();
 
     match cli.command {
         Some(Commands::Fetch) => {
@@ -47,18 +48,57 @@ async fn main() -> Result<()> {
                 println!("No readings for today — fetching...");
                 fetch::run(&cfg).await?;
             }
-            // Fire-and-forget Grapevine fetch: best-effort, fall back to the
-            // bundled corpus on any failure or timeout. Keeps startup quick.
+            // Best-effort background fetches. Each returns Option<...>; any
+            // failure just drops the contribution for today — nothing blocks
+            // startup, nothing fails the TUI.
             let grapevine_html = fetch_grapevine_html().await;
-            crate::tui::run(grapevine_html)?;
+            let reddit_json = fetch::reddit::fetch_community_json().await;
+
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(8))
+                .build()
+                .ok();
+            let today = chrono::Local::now().date_naive();
+            let step_of_day = ((today.day() as u8).wrapping_sub(1) % 12) + 1;
+
+            let bill = match client.as_ref() {
+                Some(c) => pulse::bill::BillReflection::load_or_generate(
+                    &config::config_dir().join("bill"),
+                    c,
+                    &cfg,
+                    today,
+                ).await,
+                None => pulse::bill::BillReflection::empty(),
+            };
+            let community = match client.as_ref() {
+                Some(c) => pulse::community::CommunityPulse::load_or_curate(
+                    &config::config_dir().join("community"),
+                    c,
+                    &cfg,
+                    today,
+                    reddit_json.as_deref(),
+                ).await,
+                None => pulse::community::CommunityPulse::empty(),
+            };
+            let summary = match client.as_ref() {
+                Some(c) => pulse::summary::load_or_generate(
+                    &config::config_dir().join("ai_cache").join("summary"),
+                    c,
+                    &cfg,
+                    today,
+                    step_of_day,
+                ).await,
+                None => None,
+            };
+
+            crate::tui::run(grapevine_html, bill, community, summary)?;
         }
     }
     Ok(())
 }
 
 /// Best-effort fetch of the Grapevine Quote of the Day page. Returns `None`
-/// on any failure (DNS, timeout, non-2xx, body read error). Caller treats
-/// `None` as "use bundled fallback only."
+/// on any failure.
 async fn fetch_grapevine_html() -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -66,7 +106,7 @@ async fn fetch_grapevine_html() -> Option<String> {
         .ok()?;
     let resp = client
         .get(pulse::grapevine::Grapevine::live_url())
-        .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.5)")
+        .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.6)")
         .send()
         .await
         .ok()?;

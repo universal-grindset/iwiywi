@@ -3,12 +3,12 @@
 //! fetching from Wayback), we send the page text to the AI gateway and ask
 //! it to return only the daily reading body.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::fetch::ai::{post_chat, ChatOpts};
 use crate::models::RawReading;
 
 const SYSTEM_PROMPT: &str =
@@ -17,33 +17,6 @@ const SYSTEM_PROMPT: &str =
      no JSON, no commentary. If the page contains no daily AA reading, respond with the literal word: NONE.";
 
 const MAX_PAGE_CHARS: usize = 4000;
-
-#[derive(Serialize)]
-struct ChatRequest<'a> {
-    model: &'a str,
-    messages: Vec<Message<'a>>,
-}
-
-#[derive(Serialize)]
-struct Message<'a> {
-    role: &'a str,
-    content: String,
-}
-
-#[derive(Deserialize)]
-struct ChatResponse {
-    choices: Vec<Choice>,
-}
-
-#[derive(Deserialize)]
-struct Choice {
-    message: ChoiceMessage,
-}
-
-#[derive(Deserialize)]
-struct ChoiceMessage {
-    content: String,
-}
 
 pub async fn extract_reading(
     client: &Client,
@@ -56,31 +29,13 @@ pub async fn extract_reading(
     let body_text = strip_html_to_text(html);
     let truncated: String = body_text.chars().take(MAX_PAGE_CHARS).collect();
 
-    let request = ChatRequest {
-        model: &config.ai.model,
-        messages: vec![
-            Message { role: "system", content: SYSTEM_PROMPT.to_string() },
-            Message { role: "user", content: truncated },
-        ],
+    let opts = ChatOpts {
+        max_tokens: Some(1024),
+        temperature: Some(0.3),
+        json_mode: false,
     };
-
-    let endpoint = match &config.ai.api_version {
-        Some(v) => format!("{}/chat/completions?api-version={v}", config.ai.gateway_url),
-        None => format!("{}/chat/completions", config.ai.gateway_url),
-    };
-    let req = client.post(&endpoint).json(&request);
-    let req = match &config.ai.api_version {
-        Some(_) => req.header(
-            "api-key",
-            std::env::var("AZURE_OPENAI_API_KEY").context("AZURE_OPENAI_API_KEY not set")?,
-        ),
-        None => req.bearer_auth(
-            std::env::var("VERCEL_AI_GATEWAY_TOKEN").context("VERCEL_AI_GATEWAY_TOKEN not set")?,
-        ),
-    };
-    let resp = req.send().await.context("calling AI gateway for extraction")?;
-    let chat: ChatResponse = resp.json().await.context("parsing AI extraction response")?;
-    let raw_text = chat.choices.first().map(|c| c.message.content.trim()).unwrap_or("");
+    let raw = post_chat(client, config, SYSTEM_PROMPT, &truncated, opts).await?;
+    let raw_text = raw.trim();
 
     if raw_text.is_empty() || raw_text == "NONE" {
         anyhow::bail!("AI returned no reading for {source}");
@@ -105,11 +60,9 @@ pub fn strip_html_to_text(html: &str) -> String {
     let mut out = String::new();
 
     for body in doc.select(&body_sel) {
-        // Collect node IDs of script/style subtrees to skip
         let skip_ids: std::collections::HashSet<_> = body
             .select(&script_sel)
             .flat_map(|el| {
-                // Collect the element itself and all its descendants
                 std::iter::once(el.id()).chain(el.descendants().map(|d| d.id()))
             })
             .collect();

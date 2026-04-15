@@ -4,6 +4,7 @@ pub mod export;
 pub mod help;
 pub mod journal;
 pub mod menu;
+pub mod overlay;
 pub mod palette;
 pub mod pattern;
 pub mod status;
@@ -16,12 +17,56 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use sha2::{Digest, Sha256};
 use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::config;
+use crate::config::{self, Config};
+use crate::fetch::ai::{post_chat, ChatOpts};
 use crate::pulse::{self, Focus, Order, PulseMixer, PulseSource};
 use crate::storage::read_readings;
+use crate::tui::overlay::{AiOutcome, AiOverlay};
+
+const STEP_DOUBLE_TAP_MS: u128 = 1500;
+
+const EXPLAIN_SYSTEM_PROMPT: &str =
+    "You are an AA sponsor explaining why today's reading matters for someone in recovery. \
+     Two to three plain sentences. No scripture citations, no step-enumeration, no moralizing. \
+     Focus on one practical takeaway a person could carry through their day.";
+
+const MEDITATION_SYSTEM_PROMPT: &str =
+    "You write a daily meditation on applying a specific AA step. \
+     About 150 words, first-person, plain language, grounded in everyday recovery — no platitudes. \
+     No direct quotes from copyrighted AA texts, no enumerated lists. \
+     Return only the meditation prose, no heading, no sign-off.";
+
+const JOURNAL_SEED_SYSTEM_PROMPT: &str =
+    "You craft a single reflection question for a journal entry. \
+     Twenty words maximum, ending with a question mark. \
+     No moralizing, no platitudes. The question should surface a concrete moment \
+     from the reader's day. Return only the question, no preamble.";
+
+fn sha_hex(input: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    let digest = hasher.finalize();
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn read_cache_file(path: &Path) -> Option<String> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+}
+
+fn write_cache_file(path: &Path, body: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, body)
+}
 
 pub struct App {
     pub mixer: PulseMixer,
@@ -49,9 +94,24 @@ pub struct App {
     pub help_open: bool,
     /// Favorited items persisted to `~/.iwiywi/favorites.json`.
     pub favorites: pulse::favorites::Favorites,
-    /// A transient toast shown for ~1.5s after an action (copy, export,
-    /// favorite toggle). Rendered in the status footer.
-    pub toast: Option<(String, std::time::Instant)>,
+    /// A transient toast shown briefly after an action (copy, export,
+    /// favorite toggle, daily summary). Tuple: (text, set_at, ttl). Rendered
+    /// in the status footer. TTL lets the daily summary linger longer than
+    /// the default 1.5s action-feedback toasts.
+    pub toast: Option<(String, std::time::Instant, Duration)>,
+    /// Open overlay (explain-current or step meditation). None = hidden.
+    pub ai_overlay: Option<AiOverlay>,
+    /// Receiver for in-flight AI call. `try_recv` polled on each idle tick.
+    pub ai_rx: Option<mpsc::Receiver<AiOutcome>>,
+    /// Reqwest client reused across AI calls. None when startup build failed
+    /// (no network, broken TLS, etc.) — `a` and step meditations then show
+    /// an "AI unavailable" toast instead of opening an overlay.
+    pub ai_client: Option<reqwest::Client>,
+    /// Gateway config (model, url, api_version) cloned into every AI thread.
+    pub ai_config: Config,
+    /// `(step, pressed_at)` — second tap within STEP_DOUBLE_TAP_MS triggers
+    /// the AI meditation overlay instead of a second focus set.
+    pub last_step_press: Option<(u8, Instant)>,
 }
 
 impl App {
@@ -110,7 +170,7 @@ impl App {
         let Some(item) = self.mixer.current() else { return; };
         let item = item.clone();
         let msg = if self.favorites.toggle(&item) { "★ saved" } else { "★ removed" };
-        self.toast = Some((msg.to_string(), Instant::now()));
+        self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(1500)));
         // The mixer's Favorites source is a separate snapshot of the file,
         // so refresh it from disk before rebuilding so Focus::Favorites sees
         // the toggle immediately.
@@ -127,7 +187,7 @@ impl App {
         let text = format!("{}\n\n{}\n", item.label, item.body);
         let ok = clipboard::copy(&text);
         let msg = if ok { "copied" } else { "no clipboard available" };
-        self.toast = Some((msg.to_string(), Instant::now()));
+        self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(1500)));
     }
 
     pub fn export_current(&mut self) {
@@ -136,7 +196,182 @@ impl App {
             Some(path) => format!("exported → {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("file")),
             None => "export failed".to_string(),
         };
-        self.toast = Some((msg, Instant::now()));
+        self.toast = Some((msg, Instant::now(), Duration::from_millis(1500)));
+    }
+
+    /// Open the AI-explanation overlay for the current pulse item. Cache-hit
+    /// returns synchronously in Ready state; cache-miss spawns a background
+    /// thread and leaves the overlay in Loading until the main loop polls
+    /// `ai_rx` and applies the outcome.
+    pub fn explain_current(&mut self) {
+        let Some(item) = self.mixer.current() else { return; };
+        let title = format!("Why this matters — {}", item.kind.display_label());
+        let cache_dir = config::config_dir().join("ai_cache").join("explain");
+        let cache_key = sha_hex(&item.body);
+        if let Some(cached) = read_cache_file(&cache_dir.join(format!("{cache_key}.txt"))) {
+            let mut overlay = AiOverlay::loading(title);
+            overlay.apply_outcome(AiOutcome::Text(cached));
+            self.ai_overlay = Some(overlay);
+            return;
+        }
+        let Some(client) = self.ai_client.clone() else {
+            self.set_toast("AI unavailable", 2000);
+            return;
+        };
+        self.ai_overlay = Some(AiOverlay::loading(title));
+        let system = EXPLAIN_SYSTEM_PROMPT.to_string();
+        let user = format!(
+            "Reading ({}):\n\n{}",
+            item.kind.display_label(),
+            item.body,
+        );
+        let cache_path = cache_dir.join(format!("{cache_key}.txt"));
+        let config = self.ai_config.clone();
+        let opts = ChatOpts { max_tokens: Some(300), temperature: Some(0.4), json_mode: false };
+        self.spawn_ai(client, config, system, user, opts, Some(cache_path));
+    }
+
+    /// Open a step meditation overlay for step `n`. Per-day cache key.
+    pub fn meditate_step(&mut self, step: u8) {
+        if !(1..=12).contains(&step) { return; }
+        let today = chrono::Local::now().date_naive();
+        let title = format!("Meditation on Step {step}");
+        let cache_dir = config::config_dir().join("ai_cache").join("meditations");
+        let cache_path = cache_dir.join(format!("step-{step}-{today}.txt"));
+        if let Some(cached) = read_cache_file(&cache_path) {
+            let mut overlay = AiOverlay::loading(title);
+            overlay.apply_outcome(AiOutcome::Text(cached));
+            self.ai_overlay = Some(overlay);
+            return;
+        }
+        let Some(client) = self.ai_client.clone() else {
+            self.set_toast("AI unavailable", 2000);
+            return;
+        };
+        self.ai_overlay = Some(AiOverlay::loading(title));
+        let system = MEDITATION_SYSTEM_PROMPT.to_string();
+        let user = format!(
+            "Today is {today}. Write a ~150-word meditation on applying Step {step} \
+             in an ordinary day of recovery. Ground it in something practical.",
+        );
+        let config = self.ai_config.clone();
+        let opts = ChatOpts { max_tokens: Some(400), temperature: Some(0.7), json_mode: false };
+        self.spawn_ai(client, config, system, user, opts, Some(cache_path));
+    }
+
+    fn spawn_ai(
+        &mut self,
+        client: reqwest::Client,
+        config: Config,
+        system: String,
+        user: String,
+        opts: ChatOpts,
+        cache_path: Option<PathBuf>,
+    ) {
+        let (tx, rx) = mpsc::channel();
+        self.ai_rx = Some(rx);
+        std::thread::spawn(move || {
+            let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    let _ = tx.send(AiOutcome::Error(format!("runtime: {e}")));
+                    return;
+                }
+            };
+            let outcome = rt.block_on(async {
+                match post_chat(&client, &config, &system, &user, opts).await {
+                    Ok(text) => {
+                        let trimmed = text.trim().to_string();
+                        if let Some(path) = cache_path.as_ref() {
+                            let _ = write_cache_file(path, &trimmed);
+                        }
+                        AiOutcome::Text(trimmed)
+                    }
+                    Err(e) => AiOutcome::Error(format!("{e}")),
+                }
+            });
+            let _ = tx.send(outcome);
+        });
+    }
+
+    /// Poll the AI receiver; if a result landed, apply it to the overlay
+    /// and clear the channel. Called once per event-loop idle tick.
+    pub fn poll_ai(&mut self) {
+        let Some(rx) = &self.ai_rx else { return; };
+        match rx.try_recv() {
+            Ok(outcome) => {
+                if let Some(overlay) = self.ai_overlay.as_mut() {
+                    overlay.apply_outcome(outcome);
+                }
+                self.ai_rx = None;
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                if let Some(overlay) = self.ai_overlay.as_mut() {
+                    overlay.apply_outcome(AiOutcome::Error("AI thread exited unexpectedly".to_string()));
+                }
+                self.ai_rx = None;
+            }
+        }
+    }
+
+    pub fn close_overlay(&mut self) {
+        self.ai_overlay = None;
+        // Intentionally keep `ai_rx` alive so in-flight responses don't
+        // panic on send into a dropped channel — the next poll will just
+        // discard the result since `ai_overlay` is None.
+    }
+
+    fn set_toast(&mut self, msg: &str, ttl_ms: u64) {
+        self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(ttl_ms)));
+    }
+
+    /// Produce a journal seed question: cache hit → immediate; cache miss
+    /// with a client → blocking gateway call up to ~6s; any miss → None
+    /// so `journal::open_today` falls back to the static prompt.
+    pub fn journal_seed(&self) -> Option<String> {
+        let item = self.mixer.current()?;
+        let today = chrono::Local::now().date_naive();
+        let step = item.step.unwrap_or(0);
+        let cache_dir = config::config_dir().join("ai_cache").join("journal");
+        let cache_path = cache_dir.join(format!("{today}-step-{step}.txt"));
+        if let Some(cached) = read_cache_file(&cache_path) {
+            return Some(cached);
+        }
+        let client = self.ai_client.clone()?;
+        let config = self.ai_config.clone();
+        let system = JOURNAL_SEED_SYSTEM_PROMPT.to_string();
+        let user = format!(
+            "Today's reading ({}, step {step}):\n\n{}\n\nWrite one reflection question.",
+            item.kind.display_label(),
+            item.body,
+        );
+        let opts = ChatOpts { max_tokens: Some(60), temperature: Some(0.5), json_mode: false };
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().ok()?;
+        let result = rt.block_on(async move {
+            post_chat(&client, &config, &system, &user, opts).await
+        }).ok()?;
+        let seed = result.trim().to_string();
+        if seed.is_empty() { return None; }
+        let _ = write_cache_file(&cache_path, &seed);
+        Some(seed)
+    }
+
+    /// A digit key: first press focuses on the step; second press on the
+    /// same digit within STEP_DOUBLE_TAP_MS opens the AI meditation overlay.
+    pub fn handle_step_key(&mut self, step: u8) {
+        let now = Instant::now();
+        let is_double = matches!(
+            self.last_step_press,
+            Some((s, t)) if s == step && now.duration_since(t).as_millis() < STEP_DOUBLE_TAP_MS
+        );
+        if is_double {
+            self.meditate_step(step);
+            self.last_step_press = None;
+        } else {
+            self.set_step_focus(step);
+            self.last_step_press = Some((step, now));
+        }
     }
 
     pub fn menu_row_prev(&mut self) {
@@ -211,7 +446,12 @@ impl App {
     }
 }
 
-pub fn run(grapevine_html: Option<String>) -> Result<()> {
+pub fn run(
+    grapevine_html: Option<String>,
+    bill: pulse::bill::BillReflection,
+    community: pulse::community::CommunityPulse,
+    daily_summary: Option<String>,
+) -> Result<()> {
     let cfg = config::load_config()?;
     let readings = read_readings()?;
 
@@ -228,6 +468,8 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         Box::new(pulse::bundled::Concepts::load()),
         Box::new(pulse::bundled::Slogans::load()),
         Box::new(pulse::grapevine::Grapevine::from_html(grapevine_html.as_deref())),
+        Box::new(bill),
+        Box::new(community),
         Box::new(pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         )),
@@ -272,6 +514,12 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         None
     };
 
+    // Seed the toast with the AI-generated daily summary (if we got one)
+    // so it's visible for ~4s on first render — long enough to read.
+    let initial_toast = daily_summary.map(|s| {
+        (s, Instant::now(), Duration::from_secs(4))
+    });
+
     let mut app = App {
         mixer,
         sources,
@@ -292,14 +540,22 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         favorites: pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         ),
-        toast: None,
+        toast: initial_toast,
+        ai_overlay: None,
+        ai_rx: None,
+        ai_client: reqwest::Client::builder()
+            .timeout(Duration::from_secs(12))
+            .build()
+            .ok(),
+        ai_config: cfg.clone(),
+        last_step_press: None,
     };
 
     loop {
         let size = terminal.size()?;
-        // Expire the toast after ~1.5s so it doesn't stick around.
-        if let Some((_, t)) = &app.toast {
-            if t.elapsed() > Duration::from_millis(1500) {
+        // Expire the toast once its per-toast TTL elapses.
+        if let Some((_, t, ttl)) = &app.toast {
+            if t.elapsed() > *ttl {
                 app.toast = None;
             }
         }
@@ -312,7 +568,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                     (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
                 })
             };
-            let toast = app.toast.as_ref().map(|(msg, _)| msg.as_str());
+            let toast = app.toast.as_ref().map(|(msg, _, _)| msg.as_str());
             let status_line = status::StatusLine {
                 mixer: &app.mixer,
                 focus: app.focus,
@@ -329,13 +585,34 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
             if app.help_open {
                 help::render(f, &app.palette);
             }
+            if let Some(ov) = app.ai_overlay.as_ref() {
+                overlay::render(f, &app.palette, ov);
+            }
         })?;
+
+        // Apply any completed AI call to the open overlay.
+        app.poll_ai();
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press { continue; }
                 if app.help_open {
                     app.help_open = false;
+                    continue;
+                }
+                if app.ai_overlay.is_some() {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('a') | KeyCode::Char('q') => {
+                            app.close_overlay();
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            if let Some(ov) = app.ai_overlay.as_mut() { ov.scroll_down(); }
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            if let Some(ov) = app.ai_overlay.as_mut() { ov.scroll_up(); }
+                        }
+                        _ => {}
+                    }
                     continue;
                 }
                 if app.menu_open {
@@ -362,33 +639,40 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                         app.paused = !app.paused;
                         if !app.paused { app.last_advance = Instant::now(); }
                     }
+                    KeyCode::Char('a') => app.explain_current(),
                     KeyCode::Char('f') => app.toggle_favorite(),
                     KeyCode::Char('c') => app.copy_current(),
                     KeyCode::Char('e') => app.export_current(),
                     KeyCode::Char('j') => {
                         let dir = config::config_dir().join("journal");
-                        match journal::open_today(dir) {
+                        let seed = app.journal_seed();
+                        match journal::open_today(dir, seed) {
                             Ok(p) => app.toast = Some((
                                 format!("wrote {}", p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")),
                                 Instant::now(),
+                                Duration::from_millis(1500),
                             )),
-                            Err(e) => app.toast = Some((format!("journal: {e}"), Instant::now())),
+                            Err(e) => app.toast = Some((
+                                format!("journal: {e}"),
+                                Instant::now(),
+                                Duration::from_millis(1500),
+                            )),
                         }
                         // Force a full redraw now that we're back from the editor.
                         terminal.clear()?;
                     }
-                    KeyCode::Char('1') => app.set_step_focus(1),
-                    KeyCode::Char('2') => app.set_step_focus(2),
-                    KeyCode::Char('3') => app.set_step_focus(3),
-                    KeyCode::Char('4') => app.set_step_focus(4),
-                    KeyCode::Char('5') => app.set_step_focus(5),
-                    KeyCode::Char('6') => app.set_step_focus(6),
-                    KeyCode::Char('7') => app.set_step_focus(7),
-                    KeyCode::Char('8') => app.set_step_focus(8),
-                    KeyCode::Char('9') => app.set_step_focus(9),
-                    KeyCode::Char('0') => app.set_step_focus(10),
-                    KeyCode::Char('-') => app.set_step_focus(11),
-                    KeyCode::Char('=') => app.set_step_focus(12),
+                    KeyCode::Char('1') => app.handle_step_key(1),
+                    KeyCode::Char('2') => app.handle_step_key(2),
+                    KeyCode::Char('3') => app.handle_step_key(3),
+                    KeyCode::Char('4') => app.handle_step_key(4),
+                    KeyCode::Char('5') => app.handle_step_key(5),
+                    KeyCode::Char('6') => app.handle_step_key(6),
+                    KeyCode::Char('7') => app.handle_step_key(7),
+                    KeyCode::Char('8') => app.handle_step_key(8),
+                    KeyCode::Char('9') => app.handle_step_key(9),
+                    KeyCode::Char('0') => app.handle_step_key(10),
+                    KeyCode::Char('-') => app.handle_step_key(11),
+                    KeyCode::Char('=') => app.handle_step_key(12),
                     KeyCode::Char('*') => app.clear_step_focus(),
                     _ => {}
                 }
@@ -454,6 +738,11 @@ mod tests {
                 std::path::PathBuf::from("/tmp/iwiywi-test-favorites.json"),
             ),
             toast: None,
+            ai_overlay: None,
+            ai_rx: None,
+            ai_client: None,
+            ai_config: Config::default(),
+            last_step_press: None,
         }
     }
 

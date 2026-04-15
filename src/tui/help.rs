@@ -15,8 +15,8 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    let width: u16 = 44;
-    let height: u16 = 18;
+    let width: u16 = 48;
+    let height: u16 = 20;
     if area.width < width || area.height < height { return; }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -42,13 +42,14 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("p", "previous item"),
         ("r", "random item"),
         ("space", "pause / resume"),
-        ("1–9 0 - =", "focus on Step 1–12"),
+        ("1–9 0 - =", "focus Step 1–12 · tap twice: AI meditation"),
         ("*", "clear step focus"),
+        ("a", "AI: why this matters (Esc closes)"),
         ("m", "settings menu"),
         ("f", "favorite / unfavorite"),
         ("c", "copy current item"),
         ("e", "export today"),
-        ("j", "journal ($EDITOR)"),
+        ("j", "journal (AI-seeded prompt + $EDITOR)"),
         ("?", "this help"),
         ("q", "quit"),
     ];

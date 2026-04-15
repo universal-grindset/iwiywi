@@ -116,8 +116,16 @@ The pulse cycles through:
 - **AA prayers** — Serenity, Third Step, Seventh Step, Eleventh Step (St. Francis), Set Aside, Acceptance, the Promises.
 - **AA slogans** — HALT, One Day at a Time, Easy Does It, Live and Let Live, and 26 more.
 - **Grapevine** — daily Quote of the Day from grapevine.org, with a bundled fallback.
+- **Bill W. reflection (AI)** — an AI-generated meditation each day in the voice of a recovering elder. Honestly labeled; nothing is drawn from the copyrighted "As Bill Sees It" text. Cached per day under `~/.iwiywi/bill/`.
+- **Community (AI, Reddit)** — up to three insights pulled from `/r/stopdrinking` and `/r/alcoholicsanonymous` and paraphrased by the gateway. No usernames. Cached per day under `~/.iwiywi/community/`. X/Twitter is intentionally not included — their API lacks a free read tier.
 
-`IWIYWI_FOCUS` restricts the pulse to one of these kinds. Pressing a number key (`1`–`9`, `0`=10, `-`=11, `=`=12) focuses to one Step until you press `*`.
+`IWIYWI_FOCUS` restricts the pulse to one of these kinds (adds: `bill`, `community`). Pressing a number key (`1`–`9`, `0`=10, `-`=11, `=`=12) focuses to one Step until you press `*`. Pressing the same digit again within 1.5s opens an AI meditation on that step.
+
+### AI actions
+
+- **`a`** — open an overlay with an AI explanation of *why this reading matters today*. Cache-keyed per item body; offline calls show `AI unavailable`. `Esc` or `a` again closes.
+- **`j`** — journal key. Before launching `$EDITOR`, fetches a short AI-generated reflection question tied to the current reading and seeds today's journal file with it. Falls back to the static prompt if the gateway is unreachable.
+- **Daily summary toast** — at startup, the gateway returns a ≤12-word "theme for today" line, shown briefly in the status bar on first render.
 
 <details>
 <summary>Troubleshooting</summary>
