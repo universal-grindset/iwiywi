@@ -428,6 +428,9 @@ pub fn run() -> Result<()> {
 
         if event::poll(std::time::Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
+                if key.kind != crossterm::event::KeyEventKind::Press {
+                    continue;
+                }
                 app.register_input();
                 match &app.mode {
                     Mode::Normal => match key.code {
