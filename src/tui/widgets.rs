@@ -35,7 +35,7 @@ pub fn render_pulse(
     // Static patterns (none/dots/frame/rule) draw here. Drift is animated
     // and needs live state; it draws below when present.
     pattern::draw(buf, area, text_rect, palette, pattern);
-    if pattern == Pattern::Drift {
+    if pattern.is_animated() {
         if let Some(state) = drift_state {
             drift::draw(buf, area, state, palette);
         }

@@ -17,11 +17,15 @@ pub enum Pattern {
     Frame,
     Rule,
     Drift,
+    Wave,
+    Snow,
+    Rain,
 }
 
 impl Pattern {
-    pub const ALL: [Pattern; 5] = [
-        Pattern::Drift, Pattern::None, Pattern::Dots, Pattern::Frame, Pattern::Rule,
+    pub const ALL: [Pattern; 8] = [
+        Pattern::Drift, Pattern::Wave, Pattern::Snow, Pattern::Rain,
+        Pattern::None, Pattern::Dots, Pattern::Frame, Pattern::Rule,
     ];
 
     pub fn parse(raw: Option<&str>) -> Pattern {
@@ -30,6 +34,9 @@ impl Pattern {
             Some("dots")  => Pattern::Dots,
             Some("frame") => Pattern::Frame,
             Some("rule")  => Pattern::Rule,
+            Some("wave")  => Pattern::Wave,
+            Some("snow")  => Pattern::Snow,
+            Some("rain")  => Pattern::Rain,
             // Default when unset or unrecognized: drift (the swirly pretties).
             _ => Pattern::Drift,
         }
@@ -42,6 +49,26 @@ impl Pattern {
             Pattern::Frame => "frame",
             Pattern::Rule  => "rule",
             Pattern::Drift => "drift",
+            Pattern::Wave  => "wave",
+            Pattern::Snow  => "snow",
+            Pattern::Rain  => "rain",
+        }
+    }
+
+    /// True for patterns that need an animated DriftState.
+    pub fn is_animated(&self) -> bool {
+        matches!(self, Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain)
+    }
+
+    /// The drift::Mode each animated pattern uses. Non-animated patterns
+    /// map to `Drift` as a harmless default (caller shouldn't use it).
+    pub fn drift_mode(&self) -> crate::tui::drift::Mode {
+        use crate::tui::drift::Mode;
+        match self {
+            Pattern::Wave => Mode::Wave,
+            Pattern::Snow => Mode::Snow,
+            Pattern::Rain => Mode::Rain,
+            _ => Mode::Drift,
         }
     }
 }
@@ -55,9 +82,9 @@ pub fn from_env() -> Pattern {
 /// use it to position elements relative to the text.
 pub fn draw(buf: &mut Buffer, area: Rect, text_rect: Rect, palette: &Palette, pattern: Pattern) {
     match pattern {
-        // `Drift` is animated and needs `DriftState` that lives on `App`,
-        // so it's rendered directly from `widgets::render_pulse` — not here.
-        Pattern::None | Pattern::Drift => {}
+        // Animated patterns (drift/wave/snow/rain) draw directly from
+        // `widgets::render_pulse` via the shared DriftState — not here.
+        Pattern::None | Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain => {}
         Pattern::Dots => draw_dots(buf, area, palette),
         Pattern::Frame => draw_frame(buf, text_rect, palette),
         Pattern::Rule => draw_rule(buf, text_rect, palette),

@@ -157,10 +157,14 @@ impl App {
             menu::Row::Pattern => {
                 let next = pulse::cycle(&pattern::Pattern::ALL, self.pattern, delta);
                 self.pattern = next;
-                // Spin up / tear down the drift particle field to match.
-                if next == pattern::Pattern::Drift && self.drift.is_none() {
-                    self.drift = Some(drift::DriftState::new(size_w, size_h, self.next_seed()));
-                } else if next != pattern::Pattern::Drift {
+                // Spin up or swap the animated particle field to match the
+                // new pattern's physics; tear down for static patterns.
+                if next.is_animated() {
+                    let seed = self.next_seed();
+                    self.drift = Some(drift::DriftState::with_mode(
+                        size_w, size_h, seed, next.drift_mode(),
+                    ));
+                } else {
                     self.drift = None;
                 }
             }
@@ -253,17 +257,16 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Seed the drift particle field from the initial terminal size if the
-    // chosen pattern is Drift. Other patterns leave `drift` as None.
+    // Seed the drift particle field for any animated pattern. Non-animated
+    // patterns (none/dots/frame/rule) leave `drift` as None.
     let initial_size = terminal.size()?;
-    let drift = if pattern == pattern::Pattern::Drift {
-        Some(drift::DriftState::new(
-            initial_size.width,
-            initial_size.height,
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.subsec_nanos())
-                .unwrap_or(1),
+    let drift = if pattern.is_animated() {
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(1);
+        Some(drift::DriftState::with_mode(
+            initial_size.width, initial_size.height, seed, pattern.drift_mode(),
         ))
     } else {
         None

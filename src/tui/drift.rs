@@ -21,6 +21,17 @@ const MAX_STEP: f32 = 1.1;
 // Trail glyphs — index 0 is the newest (brightest), index 3 is the oldest.
 const TRAIL_CHARS: [&str; 4] = ["●", "•", "·", "⋅"];
 
+/// Which physics drive the particle field. `Drift` is the original Perlin
+/// flow-field; the others are simple directional modes (sinusoidal wave,
+/// downward snow, fast vertical rain).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Drift,
+    Wave,
+    Snow,
+    Rain,
+}
+
 pub struct Particle {
     pub x: f32,
     pub y: f32,
@@ -31,6 +42,7 @@ pub struct DriftState {
     pub particles: Vec<Particle>,
     noise: Perlin,
     pub start: Instant,
+    pub mode: Mode,
 }
 
 fn particle_count(w: u16, h: u16) -> usize {
@@ -55,7 +67,12 @@ fn wrap(v: f32, max: f32) -> f32 {
 }
 
 impl DriftState {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn new(width: u16, height: u16, seed: u32) -> Self {
+        Self::with_mode(width, height, seed, Mode::Drift)
+    }
+
+    pub fn with_mode(width: u16, height: u16, seed: u32, mode: Mode) -> Self {
         let count = particle_count(width, height);
         let particles = (0..count)
             .map(|i| Particle {
@@ -68,24 +85,45 @@ impl DriftState {
             particles,
             noise: Perlin::new(seed),
             start: Instant::now(),
+            mode,
         }
     }
 
     pub fn tick(&mut self, width: u16, height: u16) {
         if width == 0 || height == 0 { return; }
         let t = self.start.elapsed().as_secs_f64();
-        for p in &mut self.particles {
+        for (idx, p) in self.particles.iter_mut().enumerate() {
             p.trail[3] = p.trail[2];
             p.trail[2] = p.trail[1];
             p.trail[1] = p.trail[0];
             p.trail[0] = Some((p.x as u16, p.y as u16));
 
-            let fx = p.x as f64 * FIELD_SCALE;
-            let fy = p.y as f64 * FIELD_SCALE;
-            let vx = self.noise.get([fx, fy, t * TIME_SCALE]) as f32;
-            let vy = self.noise.get([fx, fy, t * TIME_SCALE + 100.0]) as f32;
-            let vx = vx.clamp(-MAX_STEP, MAX_STEP);
-            let vy = vy.clamp(-MAX_STEP, MAX_STEP);
+            let (vx, vy) = match self.mode {
+                Mode::Drift => {
+                    let fx = p.x as f64 * FIELD_SCALE;
+                    let fy = p.y as f64 * FIELD_SCALE;
+                    let vx = self.noise.get([fx, fy, t * TIME_SCALE]) as f32;
+                    let vy = self.noise.get([fx, fy, t * TIME_SCALE + 100.0]) as f32;
+                    (vx.clamp(-MAX_STEP, MAX_STEP), vy.clamp(-MAX_STEP, MAX_STEP))
+                }
+                Mode::Wave => {
+                    // Particles slide rightward; y oscillates with a sinusoid
+                    // whose phase depends on x. Produces a rolling wave.
+                    let vx: f32 = 0.6;
+                    let phase = (p.x as f64 * 0.12 + t * 1.8).sin() as f32;
+                    let vy = phase * 0.9;
+                    (vx, vy)
+                }
+                Mode::Snow => {
+                    // Slow downward fall + a gentle horizontal sway.
+                    let sway = ((t * 0.6 + idx as f64 * 0.7).sin() * 0.25) as f32;
+                    (sway, 0.45)
+                }
+                Mode::Rain => {
+                    // Fast, essentially vertical.
+                    (0.0, 1.6)
+                }
+            };
 
             p.x = wrap(p.x + vx, width as f32);
             p.y = wrap(p.y + vy, height as f32);
