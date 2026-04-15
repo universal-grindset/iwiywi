@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#111418" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" />
+    <title>iwiywi — daily AA readings</title>
+    <link rel="stylesheet" href="/pulse.css" />
+  </head>
+  <body>
+    <main id="pulse" aria-live="polite">
+      <header class="chip" id="chip"><span id="label">loading…</span></header>
+      <article class="body" id="body"></article>
+      <footer class="status">
+        <span id="meta"></span>
+        <span id="toast" class="toast" hidden></span>
+      </footer>
+    </main>
+    <nav class="controls" aria-label="pulse controls">
+      <button data-act="prev" title="previous (p)">‹</button>
+      <button data-act="pause" id="pause-btn" title="pause / play (space)">⏸</button>
+      <button data-act="random" title="random (r)">⤮</button>
+      <button data-act="next" title="next (n)">›</button>
+      <button data-act="menu" id="menu-btn" title="menu (m)">≡</button>
+    </nav>
+    <dialog id="menu">
+      <form method="dialog">
+        <h2>settings</h2>
+        <label>order
+          <select id="sel-order">
+            <option value="random">random</option>
+            <option value="sequential">sequential</option>
+            <option value="by-step">by-step</option>
+            <option value="by-source">by-source</option>
+          </select>
+        </label>
+        <label>focus
+          <select id="sel-focus">
+            <option value="all">all</option>
+            <option value="today">today</option>
+            <option value="history">history</option>
+            <option value="big_book">big_book</option>
+            <option value="prayers">prayers</option>
+            <option value="steps">steps</option>
+            <option value="principles">principles</option>
+            <option value="grapevine">grapevine</option>
+            <option value="traditions">traditions</option>
+            <option value="concepts">concepts</option>
+            <option value="slogans">slogans</option>
+            <option value="favorites">favorites</option>
+          </select>
+        </label>
+        <label>step
+          <select id="sel-step">
+            <option value="">any</option>
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+          </select>
+        </label>
+        <label>pulse seconds
+          <input id="sel-secs" type="number" min="0" step="5" />
+        </label>
+        <p class="kbd">
+          <kbd>n</kbd>/<kbd>p</kbd> next/prev · <kbd>r</kbd> random · <kbd>space</kbd> pause ·
+          <kbd>1</kbd>–<kbd>9</kbd> <kbd>0</kbd> <kbd>-</kbd> <kbd>=</kbd> focus step · <kbd>*</kbd> clear ·
+          <kbd>m</kbd> menu
+        </p>
+        <menu>
+          <button value="close">close</button>
+        </menu>
+      </form>
+    </dialog>
+    <script src="/pulse.js" defer></script>
+  </body>
+</html>

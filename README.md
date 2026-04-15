@@ -34,9 +34,28 @@ iwiywi fetch
 
 # Install the 6am launchd job (macOS)
 iwiywi install
+
+# Serve the pulse as a web page you can open from any browser
+iwiywi serve --bind 0.0.0.0 --port 8080
 ```
 
 Keys: `n` next · `p` previous · `r` random · `q` quit · `1`–`9` `0` `-` `=` focus on Step N · `*` clear focus · **`m` open settings menu** (↑↓ pick, ←→ cycle, Esc close).
+
+## Access it anywhere
+
+`iwiywi serve` boots an HTTP server that renders the same pulse in any browser
+— phone, laptop, iPad — with the same key bindings and a touch-friendly
+control bar. Self-host it on a VPS and point a subdomain at it, or run it on
+your laptop and reach it over Tailscale.
+
+```
+iwiywi serve --bind 0.0.0.0 --port 8080
+# open http://<your-host>:8080
+```
+
+A `Dockerfile` and systemd units live at the repo root under `deploy/`.
+Walkthroughs for Docker, systemd, Caddy/nginx TLS, and Tailscale-only
+deployment are in [`docs/deploy.md`](docs/deploy.md).
 
 ## Features
 

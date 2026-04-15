@@ -1,0 +1,13 @@
+[Unit]
+Description=iwiywi daily reading fetch
+# Wait for DNS/network before scraping.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=iwiywi
+Group=iwiywi
+Environment=HOME=/var/lib/iwiywi
+WorkingDirectory=/var/lib/iwiywi
+ExecStart=/usr/local/bin/iwiywi fetch

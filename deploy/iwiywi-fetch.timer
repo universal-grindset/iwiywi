@@ -1,0 +1,13 @@
+[Unit]
+Description=Run iwiywi fetch at 6am local time
+# macOS launchd users have the install subcommand; on Linux/systemd this
+# timer is the equivalent. Persistent=true catches up if the box was off
+# at 06:00 (e.g. laptop lid was closed).
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+Unit=iwiywi-fetch.service
+
+[Install]
+WantedBy=timers.target

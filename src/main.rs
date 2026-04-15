@@ -5,6 +5,7 @@ mod models;
 mod pulse;
 mod storage;
 mod tui;
+mod web;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -26,6 +27,15 @@ enum Commands {
     Fetch,
     /// Install launchd job to run fetch at 6am daily
     Install,
+    /// Serve the pulse as a web page you can open from any browser
+    Serve {
+        /// Address to bind (default 0.0.0.0 — reachable from LAN / VPS)
+        #[arg(long, default_value = "0.0.0.0")]
+        bind: String,
+        /// TCP port to listen on
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
+    },
 }
 
 #[tokio::main]
@@ -40,6 +50,19 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Install) => {
             install::run()?;
+        }
+        Some(Commands::Serve { bind, port }) => {
+            let cfg = config::load_config()?;
+            // Match the TUI's "open it with no data and it fetches" behavior
+            // — otherwise a fresh VPS would serve an empty pulse until 6am.
+            if storage::read_readings()?.is_empty() {
+                eprintln!("No readings for today — fetching before serve...");
+                if let Err(e) = fetch::run(&cfg).await {
+                    eprintln!("warn: initial fetch failed: {e}");
+                }
+            }
+            let grapevine_html = fetch_grapevine_html().await;
+            web::run(&bind, port, grapevine_html).await?;
         }
         None => {
             let cfg = config::load_config()?;

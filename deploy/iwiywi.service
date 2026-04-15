@@ -1,0 +1,26 @@
+[Unit]
+Description=iwiywi pulse web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=iwiywi
+Group=iwiywi
+Environment=HOME=/var/lib/iwiywi
+WorkingDirectory=/var/lib/iwiywi
+# Bind to loopback by default — expose publicly via a reverse proxy with TLS.
+# Change to 0.0.0.0 if you're fronting it with something else or using a
+# WireGuard/Tailscale-only interface.
+ExecStart=/usr/local/bin/iwiywi serve --bind 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+# Hardening — the binary only needs its own state dir and network access.
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iwiywi
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
