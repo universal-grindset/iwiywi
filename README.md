@@ -1,5 +1,10 @@
 # iwiywi
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](docs/LICENSE)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg?logo=rust)](https://www.rust-lang.org)
+[![Release](https://img.shields.io/github/v/release/universal-grindset/iwiywi?display_name=tag&sort=semver)](https://github.com/universal-grindset/iwiywi/releases)
+[![Last commit](https://img.shields.io/github/last-commit/universal-grindset/iwiywi)](https://github.com/universal-grindset/iwiywi/commits/master)
+
 It Works If You Work It — twelve daily AA readings in your terminal, classified to the Steps.
 
 ![iwiywi demo](demo.gif)
@@ -21,15 +26,17 @@ cargo install --git https://github.com/universal-grindset/iwiywi
 ## Usage
 
 ```
-# Open today's readings
+# Open today's readings (auto-fetches first if none for today)
 iwiywi
 
-# Manually refresh
+# Force a refresh
 iwiywi fetch
 
 # Install the 6am launchd job (macOS)
 iwiywi install
 ```
+
+Keys inside the TUI: `a` / `s` / `?` switch tabs · `Tab` cycles · `j`/`k` scroll · `←/→` change step on the Steps tab · `p` enter pulse · `r` random surprise (or re-roll inside pulse) · `Enter` on Steps tab launches step-focused pulse · `/qr` mobile QR · `q` quit.
 
 ## Features
 
@@ -63,11 +70,38 @@ export IWIYWI_IDLE_SECS=0    # never activate
 
 ## How it works
 
-`iwiywi fetch` scrapes twelve AA daily-reading sources, asks the configured LLM (via Vercel AI Gateway) to classify each to one of the twelve Steps with a short reason, writes the result to `~/.iwiywi/readings-<date>.json`, renders a Markdown view, and publishes it to a GitHub Gist via `gh`. The gist URL is what the QR overlay encodes — scan it and GitHub renders the page on your phone. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file and renders the TUI.
+`iwiywi fetch` scrapes AA daily-reading sources (with a Wayback Machine fallback), asks the configured LLM to classify each to one of the twelve Steps with a short reason, writes the result to `~/.iwiywi/readings-<date>.json`, renders a Markdown view, and publishes it to a GitHub Gist via `gh`. The gist URL is what the QR overlay encodes — scan it and GitHub renders the page on your phone. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file (auto-fetches if missing) and renders the TUI.
 
-Requirements:
-- `VERCEL_AI_GATEWAY_TOKEN` in `~/.iwiywi/.env` (classification).
-- `gh` CLI authenticated (`gh auth login`) for gist publishing.
+### Choosing an AI provider
+
+iwiywi speaks the OpenAI chat-completions API. Two configurations are supported out of the box:
+
+**Vercel AI Gateway** (default):
+```toml
+# ~/.iwiywi/config.toml
+[ai]
+model = "anthropic/claude-haiku-4-5"
+gateway_url = "https://ai-gateway.vercel.sh/v1"
+```
+```sh
+# ~/.iwiywi/.env
+VERCEL_AI_GATEWAY_TOKEN=<your token>
+```
+
+**Azure OpenAI** (or AI Foundry):
+```toml
+[ai]
+model = "gpt-4o-mini"   # = your deployment name
+gateway_url = "https://<RESOURCE>.openai.azure.com/openai/deployments/<DEPLOYMENT>"
+api_version = "2024-08-01-preview"
+```
+```sh
+AZURE_OPENAI_API_KEY=<your key>
+```
+
+Setting `api_version` flips the auth header from `Authorization: Bearer` to `api-key:` and appends `?api-version=…` to the URL.
+
+`gh` CLI authenticated (`gh auth login` with `gist` scope) is required for gist publishing.
 
 ## What pulses
 
@@ -87,7 +121,9 @@ A step-focused pulse (`Enter` on the Steps tab) shows only items tagged with the
 
 **"No readings for today."** — Run `iwiywi fetch` once. Readings are keyed by local date.
 
-**`VERCEL_AI_GATEWAY_TOKEN not set`.** — Add it to `~/.iwiywi/.env`.
+**`VERCEL_AI_GATEWAY_TOKEN not set`.** — Add it to `~/.iwiywi/.env`. (Or switch to Azure — see "Choosing an AI provider" above.)
+
+**`AZURE_OPENAI_API_KEY not set`.** — Same — add it to `~/.iwiywi/.env`. Required when `api_version` is set in `config.toml`.
 
 **`gh gist create` fails.** — Run `gh auth login` and ensure the `gist` scope is granted (`gh auth refresh -s gist`).
 
