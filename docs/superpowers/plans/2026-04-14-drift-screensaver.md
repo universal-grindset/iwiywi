@@ -1007,7 +1007,7 @@ Run:
 IWIYWI_IDLE_SECS=5 cargo run
 ```
 
-Expected: after 5 seconds of no input, particles drift across the screen and the first reading fades in centered. Press any key — back to the All tab, scroll at 0.
+Expected: after 5 seconds of no input, particles drift across the screen and the first reading fades in centered. Press any key — returns to whatever tab you were on with scroll position preserved.
 
 - [ ] **Step 9.4: Commit**
 
@@ -1133,7 +1133,7 @@ Expected: clean.
 cargo run
 ```
 
-Expected behavior: after ~60s of no input, particles drift, Step 1 fades in, after ~8s Step 2 fades in. Press any key — returns to All tab with scroll at 0.
+Expected behavior: after ~60s of no input, particles drift, Step 1 fades in, after ~8s Step 2 fades in. Press any key — returns to whichever tab you were on with scroll position preserved.
 
 - [ ] **Step 12.4: Manual smoke: disabled**
 
