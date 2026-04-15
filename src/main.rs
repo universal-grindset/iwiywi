@@ -51,44 +51,40 @@ async fn main() -> Result<()> {
             // Best-effort background fetches. Each returns Option<...>; any
             // failure just drops the contribution for today — nothing blocks
             // startup, nothing fails the TUI.
-            let grapevine_html = fetch_grapevine_html().await;
-            let reddit_json = fetch::reddit::fetch_community_json().await;
+            //
+            // Grapevine + Reddit run in parallel since both are HTTP fetches
+            // to unrelated origins. Then Bill / Community / Summary run in
+            // parallel since all three hit the AI gateway and are independent
+            // — if they all miss cache, running them sequentially would add
+            // ~10s to startup on a cold day.
+            let (grapevine_html, reddit_json) = tokio::join!(
+                fetch_grapevine_html(),
+                fetch::reddit::fetch_community_json(),
+            );
 
             let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(8))
+                .timeout(std::time::Duration::from_secs(12))
                 .build()
                 .ok();
             let today = chrono::Local::now().date_naive();
             let step_of_day = ((today.day() as u8).wrapping_sub(1) % 12) + 1;
 
-            let bill = match client.as_ref() {
-                Some(c) => pulse::bill::BillReflection::load_or_generate(
-                    &config::config_dir().join("bill"),
-                    c,
-                    &cfg,
-                    today,
-                ).await,
-                None => pulse::bill::BillReflection::empty(),
-            };
-            let community = match client.as_ref() {
-                Some(c) => pulse::community::CommunityPulse::load_or_curate(
-                    &config::config_dir().join("community"),
-                    c,
-                    &cfg,
-                    today,
-                    reddit_json.as_deref(),
-                ).await,
-                None => pulse::community::CommunityPulse::empty(),
-            };
-            let summary = match client.as_ref() {
-                Some(c) => pulse::summary::load_or_generate(
-                    &config::config_dir().join("ai_cache").join("summary"),
-                    c,
-                    &cfg,
-                    today,
-                    step_of_day,
-                ).await,
-                None => None,
+            let bill_dir = config::config_dir().join("bill");
+            let community_dir = config::config_dir().join("community");
+            let summary_dir = config::config_dir().join("ai_cache").join("summary");
+            let (bill, community, summary) = match client.as_ref() {
+                Some(c) => tokio::join!(
+                    pulse::bill::BillReflection::load_or_generate(&bill_dir, c, &cfg, today),
+                    pulse::community::CommunityPulse::load_or_curate(
+                        &community_dir, c, &cfg, today, reddit_json.as_deref(),
+                    ),
+                    pulse::summary::load_or_generate(&summary_dir, c, &cfg, today, step_of_day),
+                ),
+                None => (
+                    pulse::bill::BillReflection::empty(),
+                    pulse::community::CommunityPulse::empty(),
+                    None,
+                ),
             };
 
             crate::tui::run(grapevine_html, bill, community, summary)?;

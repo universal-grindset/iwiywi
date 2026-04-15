@@ -575,7 +575,7 @@ pub fn run(
             if app.help_open {
                 help::render(f, &app.palette);
             }
-            if let Some(ov) = app.ai_overlay.as_ref() {
+            if let Some(ov) = app.ai_overlay.as_mut() {
                 overlay::render(f, &app.palette, ov);
             }
         })?;

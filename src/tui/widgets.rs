@@ -24,9 +24,18 @@ pub fn render_pulse(
     let Some(item) = item else { return; };
 
     let width = (area.width as f32 * 0.7).clamp(20.0, 72.0) as u16;
-    let body_lines_estimate = (item.body.chars().count() as u16 / width.max(1)).saturating_add(1);
-    let total_height = 3 + body_lines_estimate;
-    let total_height = total_height.min(area.height);
+    let w = width.max(1) as usize;
+    // Per-line ceiling-divide so we never under-count, count explicit
+    // newlines as hard breaks, and add a safety margin for word-wrap slack
+    // (a word that doesn't fit at the end of a line gets pushed down, which
+    // pure char-count division misses).
+    let mut body_lines: u16 = 0;
+    for line in item.body.split('\n') {
+        let n = line.chars().count();
+        body_lines = body_lines.saturating_add(n.div_ceil(w).max(1) as u16);
+    }
+    body_lines = body_lines.saturating_add(1);
+    let total_height = (3 + body_lines).min(area.height);
 
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(total_height)) / 2;

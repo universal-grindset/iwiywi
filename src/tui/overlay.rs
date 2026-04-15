@@ -66,9 +66,23 @@ impl AiOverlay {
 
     pub fn scroll_down(&mut self) { self.scroll = self.scroll.saturating_add(1); }
     pub fn scroll_up(&mut self)   { self.scroll = self.scroll.saturating_sub(1); }
+
+    /// Rough upper bound on the scroll offset: one hard-break line per `\n`
+    /// plus a word-wrap allowance. Called during render with the viewport
+    /// width so the cap tracks the actual wrapped line count.
+    pub fn clamp_scroll(&mut self, viewport_width: u16, viewport_height: u16) {
+        let w = viewport_width.max(1) as usize;
+        let mut lines: u16 = 0;
+        for line in self.body.split('\n') {
+            let n = line.chars().count();
+            lines = lines.saturating_add(n.div_ceil(w).max(1) as u16);
+        }
+        let max_scroll = lines.saturating_sub(viewport_height.max(1));
+        if self.scroll > max_scroll { self.scroll = max_scroll; }
+    }
 }
 
-pub fn render(frame: &mut Frame, palette: &Palette, overlay: &AiOverlay) {
+pub fn render(frame: &mut Frame, palette: &Palette, overlay: &mut AiOverlay) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
@@ -102,6 +116,8 @@ pub fn render(frame: &mut Frame, palette: &Palette, overlay: &AiOverlay) {
         height: inner.height.saturating_sub(1),
     };
     let footer_y = inner.y + inner.height.saturating_sub(1);
+
+    overlay.clamp_scroll(body_rect.width, body_rect.height);
 
     let body_style = match overlay.status {
         OverlayStatus::Loading => Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
@@ -168,5 +184,36 @@ mod tests {
         o.scroll_down();
         o.scroll_up();
         assert_eq!(o.scroll, 1);
+    }
+
+    #[test]
+    fn clamp_scroll_pins_to_content_end() {
+        let mut o = AiOverlay::loading("T");
+        o.apply_outcome(AiOutcome::Text("a\nb\nc".to_string()));
+        o.scroll = 99;
+        // Viewport 40 wide, 2 tall. 3 hard-break lines, max_scroll = 3-2 = 1.
+        o.clamp_scroll(40, 2);
+        assert_eq!(o.scroll, 1);
+    }
+
+    #[test]
+    fn clamp_scroll_allows_in_range_offsets() {
+        let mut o = AiOverlay::loading("T");
+        o.apply_outcome(AiOutcome::Text("a\nb\nc\nd\ne".to_string()));
+        o.scroll = 2;
+        o.clamp_scroll(40, 2);
+        // 5 lines - 2 viewport = 3 max. scroll=2 is in-range.
+        assert_eq!(o.scroll, 2);
+    }
+
+    #[test]
+    fn clamp_scroll_word_wraps_long_lines() {
+        let mut o = AiOverlay::loading("T");
+        // 100-char single line at width 10 → 10 wrapped lines.
+        o.apply_outcome(AiOutcome::Text("x".repeat(100)));
+        o.scroll = 99;
+        o.clamp_scroll(10, 3);
+        // 10 wrapped lines - 3 viewport = 7 max.
+        assert_eq!(o.scroll, 7);
     }
 }
