@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
                 fetch::reddit::fetch_community_json(),
             );
             let _ = &cfg; // cfg is passed to tui::run for the background AI.
-            crate::tui::run(grapevine_html, reddit_json, cfg)?;
+            crate::tui::run(grapevine_html, reddit_json, cfg).await?;
         }
     }
     Ok(())

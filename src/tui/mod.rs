@@ -15,18 +15,21 @@ pub mod widgets;
 use anyhow::Result;
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+        DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyEventKind,
         MouseButton, MouseEvent, MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::StreamExt;
 use ratatui::{backend::CrosstermBackend, Terminal};
 use sha2::{Digest, Sha256};
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
+use tokio::select;
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::time::interval;
 
 use crate::config::{self, Config};
 use crate::fetch::ai::{post_chat, ChatOpts};
@@ -110,8 +113,13 @@ pub struct App {
     pub toast: Option<(String, std::time::Instant, Duration)>,
     /// Open overlay (explain-current or step meditation). None = hidden.
     pub ai_overlay: Option<AiOverlay>,
-    /// Receiver for in-flight AI call. `try_recv` polled on each idle tick.
-    pub ai_rx: Option<mpsc::Receiver<AiOutcome>>,
+    /// Shared sender for AI outcomes. `spawn_ai` clones this into each
+    /// background task; the matching receiver lives in the main `select!`
+    /// in `run()`. Lets the outcome stream through a single channel
+    /// regardless of which AI call produced it.
+    pub ai_tx: UnboundedSender<AiOutcome>,
+    /// Flipped by `q` and the like; checked at the top of the main loop.
+    pub should_quit: bool,
     /// `reqwest::Client` reused across AI calls. None when startup build failed
     /// (no network, broken TLS, etc.) — `a` and step meditations then show
     /// an "AI unavailable" toast instead of opening an overlay.
@@ -137,6 +145,9 @@ pub struct App {
     /// Last frame draw time. Kept for debugging and future use.
     #[allow(dead_code, reason = "kept for future rate-limiting hooks")]
     pub last_draw: Instant,
+    /// Set true by the `j` handler after returning from `$EDITOR`; the main
+    /// loop notices and calls `terminal.clear()` before the next draw.
+    pub need_clear: bool,
 }
 
 const IDLE_DIM_AFTER: Duration = Duration::from_secs(300);
@@ -299,50 +310,132 @@ impl App {
         opts: ChatOpts,
         cache_path: Option<PathBuf>,
     ) {
-        let (tx, rx) = mpsc::channel();
-        self.ai_rx = Some(rx);
-        std::thread::spawn(move || {
-            let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
-                Ok(rt) => rt,
-                Err(e) => {
-                    let _ = tx.send(AiOutcome::Error(format!("runtime: {e}")));
-                    return;
-                }
-            };
-            let outcome = rt.block_on(async {
-                match post_chat(&client, &config, &system, &user, opts).await {
-                    Ok(text) => {
-                        let trimmed = text.trim().to_string();
-                        if let Some(path) = cache_path.as_ref() {
-                            let _ = write_cache_file(path, &trimmed);
-                        }
-                        AiOutcome::Text(trimmed)
+        let tx = self.ai_tx.clone();
+        tokio::spawn(async move {
+            let outcome = match post_chat(&client, &config, &system, &user, opts).await {
+                Ok(text) => {
+                    let trimmed = text.trim().to_string();
+                    if let Some(path) = cache_path.as_ref() {
+                        let _ = write_cache_file(path, &trimmed);
                     }
-                    Err(e) => AiOutcome::Error(format!("{e}")),
+                    AiOutcome::Text(trimmed)
                 }
-            });
+                Err(e) => AiOutcome::Error(format!("{e}")),
+            };
             let _ = tx.send(outcome);
         });
     }
 
-    /// Poll the AI receiver; if a result landed, apply it to the overlay
-    /// and clear the channel. Called once per event-loop idle tick.
-    pub fn poll_ai(&mut self) {
-        let Some(rx) = &self.ai_rx else { return; };
-        match rx.try_recv() {
-            Ok(outcome) => {
-                if let Some(overlay) = self.ai_overlay.as_mut() {
-                    overlay.apply_outcome(outcome);
+    /// Apply an AI-call outcome. Invoked by the main `select!` branch.
+    /// If no overlay is open (user closed it before the AI finished) the
+    /// outcome is silently dropped.
+    pub fn apply_ai_outcome(&mut self, outcome: AiOutcome) {
+        if let Some(overlay) = self.ai_overlay.as_mut() {
+            overlay.apply_outcome(outcome);
+        }
+    }
+
+    /// Single dispatch for every `Event` the terminal produces. Pulled out
+    /// of the main loop so `run()` can stay narrow — just select! arms
+    /// and rendering. No blocking I/O here; side effects are pure state
+    /// mutations on `self` (e.g. spawn_ai fires a background task and
+    /// returns immediately).
+    pub fn handle_event(&mut self, ev: Event, size_w: u16, size_h: u16) {
+        if let Event::Mouse(MouseEvent { kind, .. }) = ev {
+            if let MouseEventKind::Down(MouseButton::Left) = kind {
+                // Only clicks reset the idle timer — mouse-move events
+                // would otherwise keep the UI awake forever.
+                self.last_input = Instant::now();
+                if self.help_open {
+                    self.help_open = false;
+                } else if self.ai_overlay.is_some() {
+                    self.close_overlay();
+                } else if self.menu_open {
+                    self.menu_open = false;
+                } else {
+                    self.copy_current();
                 }
-                self.ai_rx = None;
             }
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => {
-                if let Some(overlay) = self.ai_overlay.as_mut() {
-                    overlay.apply_outcome(AiOutcome::Error("AI thread exited unexpectedly".to_string()));
+            return;
+        }
+        let Event::Key(key) = ev else { return; };
+        if key.kind != KeyEventKind::Press { return; }
+        self.last_input = Instant::now();
+        if self.help_open {
+            self.help_open = false;
+            return;
+        }
+        if self.ai_overlay.is_some() {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('a' | 'q') => self.close_overlay(),
+                KeyCode::Char('j') | KeyCode::Down => {
+                    if let Some(ov) = self.ai_overlay.as_mut() { ov.scroll_down(); }
                 }
-                self.ai_rx = None;
+                KeyCode::Char('k') | KeyCode::Up => {
+                    if let Some(ov) = self.ai_overlay.as_mut() { ov.scroll_up(); }
+                }
+                _ => {}
             }
+            return;
+        }
+        if self.menu_open {
+            match key.code {
+                KeyCode::Char('m') | KeyCode::Esc => { self.menu_open = false; return; }
+                KeyCode::Up    => { self.menu_row_prev(); return; }
+                KeyCode::Down  => { self.menu_row_next(); return; }
+                KeyCode::Left  => { self.menu_cycle(-1, size_w, size_h); return; }
+                KeyCode::Right => { self.menu_cycle( 1, size_w, size_h); return; }
+                // Any other key closes the menu and falls through below.
+                _ => { self.menu_open = false; }
+            }
+        }
+        match key.code {
+            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('m') => self.menu_open = true,
+            KeyCode::Char('?') => self.help_open = true,
+            KeyCode::Char('n') => self.next(),
+            KeyCode::Char('p') => self.prev(),
+            KeyCode::Char('r') => self.random(),
+            KeyCode::Char(' ') => {
+                self.paused = !self.paused;
+                if !self.paused { self.last_advance = Instant::now(); }
+            }
+            KeyCode::Char('a') => self.explain_current(),
+            KeyCode::Char('F') => self.showcase = !self.showcase,
+            KeyCode::Char('f') => self.toggle_favorite(),
+            KeyCode::Char('c') => self.copy_current(),
+            KeyCode::Char('e') => self.export_current(),
+            KeyCode::Char('j') => {
+                let dir = config::config_dir().join("journal");
+                let seed = self.journal_seed();
+                match journal::open_today(dir, seed) {
+                    Ok(p) => self.toast = Some((
+                        format!("wrote {}", p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")),
+                        Instant::now(),
+                        Duration::from_millis(1500),
+                    )),
+                    Err(e) => self.toast = Some((
+                        format!("journal: {e}"),
+                        Instant::now(),
+                        Duration::from_millis(1500),
+                    )),
+                }
+                self.need_clear = true;
+            }
+            KeyCode::Char('1') => self.handle_step_key(1),
+            KeyCode::Char('2') => self.handle_step_key(2),
+            KeyCode::Char('3') => self.handle_step_key(3),
+            KeyCode::Char('4') => self.handle_step_key(4),
+            KeyCode::Char('5') => self.handle_step_key(5),
+            KeyCode::Char('6') => self.handle_step_key(6),
+            KeyCode::Char('7') => self.handle_step_key(7),
+            KeyCode::Char('8') => self.handle_step_key(8),
+            KeyCode::Char('9') => self.handle_step_key(9),
+            KeyCode::Char('0') => self.handle_step_key(10),
+            KeyCode::Char('-') => self.handle_step_key(11),
+            KeyCode::Char('=') => self.handle_step_key(12),
+            KeyCode::Char('*') => self.clear_step_focus(),
+            _ => {}
         }
     }
 
@@ -496,28 +589,17 @@ enum StartupAi {
     Summary(String),
 }
 
-fn spawn_blocking<F>(body: F)
-where
-    F: FnOnce(&tokio::runtime::Runtime) + Send + 'static,
-{
-    std::thread::spawn(move || {
-        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
-            body(&rt);
-        }
-    });
-}
-
 fn spawn_startup_bill(
     client: reqwest::Client,
     cfg: Config,
     today: chrono::NaiveDate,
-    tx: mpsc::Sender<StartupAi>,
+    tx: UnboundedSender<StartupAi>,
 ) {
     let cache_dir = config::config_dir().join("bill");
-    spawn_blocking(move |rt| {
-        let bill = rt.block_on(
-            pulse::bill::BillReflection::load_or_generate(&cache_dir, &client, &cfg, today),
-        );
+    tokio::spawn(async move {
+        let bill = pulse::bill::BillReflection::load_or_generate(
+            &cache_dir, &client, &cfg, today,
+        ).await;
         let _ = tx.send(StartupAi::Bill(Box::new(bill)));
     });
 }
@@ -527,15 +609,13 @@ fn spawn_startup_community(
     cfg: Config,
     today: chrono::NaiveDate,
     reddit_json: Option<String>,
-    tx: mpsc::Sender<StartupAi>,
+    tx: UnboundedSender<StartupAi>,
 ) {
     let cache_dir = config::config_dir().join("community");
-    spawn_blocking(move |rt| {
-        let community = rt.block_on(
-            pulse::community::CommunityPulse::load_or_curate(
-                &cache_dir, &client, &cfg, today, reddit_json.as_deref(),
-            ),
-        );
+    tokio::spawn(async move {
+        let community = pulse::community::CommunityPulse::load_or_curate(
+            &cache_dir, &client, &cfg, today, reddit_json.as_deref(),
+        ).await;
         let _ = tx.send(StartupAi::Community(Box::new(community)));
     });
 }
@@ -545,19 +625,19 @@ fn spawn_startup_summary(
     cfg: Config,
     today: chrono::NaiveDate,
     step_of_day: u8,
-    tx: mpsc::Sender<StartupAi>,
+    tx: UnboundedSender<StartupAi>,
 ) {
     let cache_dir = config::config_dir().join("ai_cache").join("summary");
-    spawn_blocking(move |rt| {
-        if let Some(line) = rt.block_on(
-            pulse::summary::load_or_generate(&cache_dir, &client, &cfg, today, step_of_day),
-        ) {
+    tokio::spawn(async move {
+        if let Some(line) = pulse::summary::load_or_generate(
+            &cache_dir, &client, &cfg, today, step_of_day,
+        ).await {
             let _ = tx.send(StartupAi::Summary(line));
         }
     });
 }
 
-pub fn run(
+pub async fn run(
     grapevine_html: Option<String>,
     reddit_json: Option<String>,
     cfg: Config,
@@ -625,9 +705,10 @@ pub fn run(
         None
     };
 
-    // Daily-summary toast arrives via startup_rx later (see below) since
-    // it's an AI call that may take a few seconds on cold cache.
-    let initial_toast = None;
+    // Shared AI-outcome channel: every spawn_ai call clones `ai_tx`; the
+    // matching `ai_rx` lives in the main select! loop below.
+    let (ai_tx, mut ai_rx) = mpsc::unbounded_channel::<AiOutcome>();
+    let (startup_tx, mut startup_rx) = mpsc::unbounded_channel::<StartupAi>();
 
     let mut app = App {
         mixer,
@@ -650,9 +731,10 @@ pub fn run(
         favorites: pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         ),
-        toast: initial_toast,
+        toast: None,
         ai_overlay: None,
-        ai_rx: None,
+        ai_tx,
+        should_quit: false,
         ai_client: reqwest::Client::builder()
             .timeout(Duration::from_secs(12))
             .build()
@@ -663,13 +745,13 @@ pub fn run(
         last_input: Instant::now(),
         palette_auto: palette::auto_requested(),
         last_drift_tick: Instant::now(),
-        last_draw: Instant::now() - Duration::from_secs(1), // force first draw
+        last_draw: Instant::now() - Duration::from_secs(1),
+        need_clear: false,
     };
 
-    // Spawn background AI tasks. Each runs on its own thread with a fresh
-    // tokio runtime. Results arrive via `startup_rx` which the main loop
-    // polls every iteration — no blocking, TUI is already interactive.
-    let (startup_tx, startup_rx) = mpsc::channel::<StartupAi>();
+    // Spawn background AI tasks. Each runs as a tokio::spawn'd task on
+    // the existing runtime (main.rs is #[tokio::main]); results arrive
+    // via `startup_rx` which participates in the main select!.
     if let Some(client) = app.ai_client.clone() {
         let today = chrono::Local::now().date_naive();
         let step_of_day = ((chrono::Datelike::day(&today) as u8).wrapping_sub(1) % 12) + 1;
@@ -680,28 +762,24 @@ pub fn run(
         spawn_startup_summary(client, cfg.clone(), today, step_of_day, startup_tx);
     }
 
-    'run: loop {
+    // Canonical async event loop per the ratatui-tui skill:
+    // `EventStream` yields events non-blocking, `interval` drives the 30 fps
+    // drift/pulse tick, and two receivers stream AI results back from
+    // background `tokio::spawn` tasks. `select!` races all four branches.
+    let mut events = EventStream::new();
+    let mut ticker = interval(Duration::from_millis(FRAME_MS));
+
+    loop {
+        if app.should_quit { break; }
+
         let size = terminal.size()?;
-        // Expire the toast once its per-toast TTL elapses.
+        // Expire any toast past its TTL.
         if let Some((_, t, ttl)) = &app.toast {
             if t.elapsed() > *ttl {
                 app.toast = None;
             }
         }
-
-        // Tick drift on a real-time cadence so animation keeps flowing
-        // independently of event rate. Without this, held-key input
-        // starves the animation (drift only ticked in the no-event branch).
-        if let Some(state) = app.drift.as_mut() {
-            if app.last_drift_tick.elapsed() >= Duration::from_millis(FRAME_MS) {
-                state.tick(size.width, size.height);
-                app.last_drift_tick = Instant::now();
-            }
-        }
-        // Compute the effective palette each frame: idle dim kicks in after
-        // IDLE_DIM_AFTER with no keypress. Palette-auto re-derives the
-        // variant from the current hour so the display drifts through the
-        // day. Both layer over app.palette without mutating it.
+        // Compute the effective palette (idle dim + time-of-day auto).
         let idle = app.last_input.elapsed() > IDLE_DIM_AFTER;
         let mut eff_palette = if app.palette_auto {
             palette::Palette::build(
@@ -721,8 +799,6 @@ pub fn run(
                 f, app.mixer.current(), &eff_palette,
                 eff_pattern, eff_drift, app.text_size, app.showcase,
             );
-            // Showcase mode: suppress status line, clock, moon anchor, and
-            // the menu/help overlays. Keep the AI overlay so `a` still works.
             if !app.showcase {
                 let frame_area = f.area();
                 {
@@ -761,166 +837,55 @@ pub fn run(
             }
         })?;
 
-        // Apply any completed AI call to the open overlay.
-        app.poll_ai();
-
-        // Drain any completed startup AI tasks (Bill / Community / Summary).
-        while let Ok(msg) = startup_rx.try_recv() {
-            match msg {
-                StartupAi::Bill(b) => {
-                    if !b.items().is_empty() {
-                        app.sources[BILL_IDX] = b;
-                        app.rebuild_mixer();
-                    }
-                }
-                StartupAi::Community(c) => {
-                    if !c.items().is_empty() {
-                        app.sources[COMMUNITY_IDX] = c;
-                        app.rebuild_mixer();
-                    }
-                }
-                StartupAi::Summary(s) => {
-                    app.toast = Some((s, Instant::now(), Duration::from_secs(5)));
-                }
-            }
+        if app.need_clear {
+            terminal.clear()?;
+            app.need_clear = false;
         }
 
-        // Poll cadence: match FRAME_MS when animated so drift stays smooth
-        // at 30 fps; slow to 200ms for static patterns (nothing needs to
-        // advance between events).
-        let poll_ms = if app.pattern.is_animated() { FRAME_MS } else { 200 };
-        if event::poll(Duration::from_millis(poll_ms))? {
-            // Drain all pending events in one pass before redrawing.
-            // Without this, holding a key (n/p/r) produces ~30 events/sec,
-            // each triggering a full frame render and queuing up behind the
-            // next one — perceived as "slow" held-key response. The drain
-            // loop collapses a batch of held-key events into a single draw.
-            loop {
-            let ev = event::read()?;
-            'handled: {
-            if let Event::Mouse(MouseEvent { kind, .. }) = ev {
-                if let MouseEventKind::Down(MouseButton::Left) = kind {
-                    // Only clicks reset the idle timer — mouse-move events
-                    // would otherwise keep the UI awake forever just because
-                    // the cursor drifted over the window.
-                    app.last_input = Instant::now();
-                    // Clicks close overlays first; otherwise they copy the
-                    // current pulse item. Menus are mouse-dismissable too.
-                    if app.help_open {
-                        app.help_open = false;
-                    } else if app.ai_overlay.is_some() {
-                        app.close_overlay();
-                    } else if app.menu_open {
-                        app.menu_open = false;
-                    } else {
-                        app.copy_current();
-                    }
-                }
-                break 'handled;
-            }
-            if let Event::Key(key) = ev {
-                if key.kind != KeyEventKind::Press { break 'handled; }
-                // Any keypress wakes the UI from idle dim-down and resets
-                // the idle timer.
-                app.last_input = Instant::now();
-                if app.help_open {
-                    app.help_open = false;
-                    break 'handled;
-                }
-                if app.ai_overlay.is_some() {
-                    match key.code {
-                        KeyCode::Esc | KeyCode::Char('a' | 'q') => {
-                            app.close_overlay();
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            if let Some(ov) = app.ai_overlay.as_mut() { ov.scroll_down(); }
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            if let Some(ov) = app.ai_overlay.as_mut() { ov.scroll_up(); }
-                        }
-                        _ => {}
-                    }
-                    break 'handled;
-                }
-                if app.menu_open {
-                    match key.code {
-                        KeyCode::Char('m') | KeyCode::Esc => { app.menu_open = false; break 'handled; }
-                        KeyCode::Up    => { app.menu_row_prev(); break 'handled; }
-                        KeyCode::Down  => { app.menu_row_next(); break 'handled; }
-                        KeyCode::Left  => { app.menu_cycle(-1, size.width, size.height); break 'handled; }
-                        KeyCode::Right => { app.menu_cycle( 1, size.width, size.height); break 'handled; }
-                        // Any other key closes the menu and falls through to
-                        // the normal handler below (so `q`, `n`, `r`, step
-                        // focus digits all still work from within the menu).
-                        _ => { app.menu_open = false; }
-                    }
-                }
-                match key.code {
-                    KeyCode::Char('q') => break 'run,
-                    KeyCode::Char('m') => app.menu_open = true,
-                    KeyCode::Char('?') => app.help_open = true,
-                    KeyCode::Char('n') => app.next(),
-                    KeyCode::Char('p') => app.prev(),
-                    KeyCode::Char('r') => app.random(),
-                    KeyCode::Char(' ') => {
-                        app.paused = !app.paused;
-                        if !app.paused { app.last_advance = Instant::now(); }
-                    }
-                    KeyCode::Char('a') => app.explain_current(),
-                    KeyCode::Char('F') => app.showcase = !app.showcase,
-                    KeyCode::Char('f') => app.toggle_favorite(),
-                    KeyCode::Char('c') => app.copy_current(),
-                    KeyCode::Char('e') => app.export_current(),
-                    KeyCode::Char('j') => {
-                        let dir = config::config_dir().join("journal");
-                        let seed = app.journal_seed();
-                        match journal::open_today(dir, seed) {
-                            Ok(p) => app.toast = Some((
-                                format!("wrote {}", p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")),
-                                Instant::now(),
-                                Duration::from_millis(1500),
-                            )),
-                            Err(e) => app.toast = Some((
-                                format!("journal: {e}"),
-                                Instant::now(),
-                                Duration::from_millis(1500),
-                            )),
-                        }
-                        // Force a full redraw now that we're back from the editor.
-                        terminal.clear()?;
-                    }
-                    KeyCode::Char('1') => app.handle_step_key(1),
-                    KeyCode::Char('2') => app.handle_step_key(2),
-                    KeyCode::Char('3') => app.handle_step_key(3),
-                    KeyCode::Char('4') => app.handle_step_key(4),
-                    KeyCode::Char('5') => app.handle_step_key(5),
-                    KeyCode::Char('6') => app.handle_step_key(6),
-                    KeyCode::Char('7') => app.handle_step_key(7),
-                    KeyCode::Char('8') => app.handle_step_key(8),
-                    KeyCode::Char('9') => app.handle_step_key(9),
-                    KeyCode::Char('0') => app.handle_step_key(10),
-                    KeyCode::Char('-') => app.handle_step_key(11),
-                    KeyCode::Char('=') => app.handle_step_key(12),
-                    KeyCode::Char('*') => app.clear_step_focus(),
-                    _ => {}
+        select! {
+            // Terminal event (keyboard / mouse / resize). Non-blocking.
+            ev = events.next() => {
+                if let Some(Ok(ev)) = ev {
+                    app.handle_event(ev, size.width, size.height);
                 }
             }
-            } // end 'handled block
-            // Drain continuation: if more events are queued, handle them
-            // immediately without redrawing. Break back up to the outer
-            // loop to draw once after the batch.
-            if !event::poll(Duration::from_millis(0))? { break; }
-            } // end drain loop
-        } else {
-            if let Some(state) = app.drift.as_mut() {
-                state.tick(size.width, size.height);
-            }
-            if !app.paused {
-                if let Some(interval) = app.pulse_secs {
-                    if app.last_advance.elapsed() >= interval {
-                        app.next();
+            // Periodic tick: advance drift and check pulse auto-advance.
+            _ = ticker.tick() => {
+                if let Some(state) = app.drift.as_mut() {
+                    state.tick(size.width, size.height);
+                    app.last_drift_tick = Instant::now();
+                }
+                if !app.paused {
+                    if let Some(interval) = app.pulse_secs {
+                        if app.last_advance.elapsed() >= interval {
+                            app.next();
+                        }
                     }
                 }
+            }
+            // Completed startup AI task (Bill / Community / daily Summary).
+            Some(msg) = startup_rx.recv() => {
+                match msg {
+                    StartupAi::Bill(b) => {
+                        if !b.items().is_empty() {
+                            app.sources[BILL_IDX] = b;
+                            app.rebuild_mixer();
+                        }
+                    }
+                    StartupAi::Community(c) => {
+                        if !c.items().is_empty() {
+                            app.sources[COMMUNITY_IDX] = c;
+                            app.rebuild_mixer();
+                        }
+                    }
+                    StartupAi::Summary(s) => {
+                        app.toast = Some((s, Instant::now(), Duration::from_secs(5)));
+                    }
+                }
+            }
+            // Completed interactive AI call (explain / step meditation).
+            Some(outcome) = ai_rx.recv() => {
+                app.apply_ai_outcome(outcome);
             }
         }
     }
@@ -974,7 +939,8 @@ mod tests {
             ),
             toast: None,
             ai_overlay: None,
-            ai_rx: None,
+            ai_tx: mpsc::unbounded_channel().0,
+            should_quit: false,
             ai_client: None,
             ai_config: Config::default(),
             last_step_press: None,
@@ -983,6 +949,7 @@ mod tests {
             palette_auto: false,
             last_drift_tick: Instant::now(),
             last_draw: Instant::now(),
+            need_clear: false,
         }
     }
 
