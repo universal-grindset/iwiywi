@@ -162,24 +162,26 @@ pub fn render(
     let buf = frame.buffer_mut();
 
     // Particles: draw trails oldest → newest so the head sits on top.
-    for p in &state.particles {
-        for (i, pos) in p.trail.iter().enumerate().rev() {
-            if let Some((x, y)) = pos {
-                if *x < area.width && *y < area.height {
-                    let ch = TRAIL_CHARS[i];
-                    let color = lerp_color(theme.border, theme.muted, 1.0 - (i as f32 / 4.0));
-                    buf[(area.x + *x, area.y + *y)]
-                        .set_symbol(ch)
-                        .set_style(Style::default().fg(color));
+    if area.width >= 40 && area.height >= 15 {
+        for p in &state.particles {
+            for (i, pos) in p.trail.iter().enumerate().rev() {
+                if let Some((x, y)) = pos {
+                    if *x < area.width && *y < area.height {
+                        let ch = TRAIL_CHARS[i];
+                        let color = lerp_color(theme.border, theme.muted, 1.0 - (i as f32 / 4.0));
+                        buf[(area.x + *x, area.y + *y)]
+                            .set_symbol(ch)
+                            .set_style(Style::default().fg(color));
+                    }
                 }
             }
-        }
-        let hx = p.x as u16;
-        let hy = p.y as u16;
-        if hx < area.width && hy < area.height {
-            buf[(area.x + hx, area.y + hy)]
-                .set_symbol("•")
-                .set_style(Style::default().fg(theme.accent));
+            let hx = p.x as u16;
+            let hy = p.y as u16;
+            if hx < area.width && hy < area.height {
+                buf[(area.x + hx, area.y + hy)]
+                    .set_symbol("•")
+                    .set_style(Style::default().fg(theme.accent));
+            }
         }
     }
 
