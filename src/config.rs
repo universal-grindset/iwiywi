@@ -76,6 +76,20 @@ pub fn qr_url(cfg: &Config) -> String {
     }
 }
 
+pub fn idle_secs() -> Option<std::time::Duration> {
+    const DEFAULT: u64 = 60;
+    let raw = std::env::var("IWIYWI_IDLE_SECS").ok();
+    let secs: u64 = match raw.as_deref() {
+        None => DEFAULT,
+        Some(s) => s.parse().unwrap_or(DEFAULT),
+    };
+    if secs == 0 {
+        None
+    } else {
+        Some(std::time::Duration::from_secs(secs))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +149,32 @@ mod tests {
         "#;
         let c: Config = toml::from_str(toml_str).unwrap();
         assert!(c.mobile.gist_id.is_none());
+    }
+
+    #[test]
+    fn idle_secs_defaults_to_sixty_when_unset() {
+        std::env::remove_var("IWIYWI_IDLE_SECS");
+        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn idle_secs_returns_none_when_zero() {
+        std::env::set_var("IWIYWI_IDLE_SECS", "0");
+        assert_eq!(idle_secs(), None);
+        std::env::remove_var("IWIYWI_IDLE_SECS");
+    }
+
+    #[test]
+    fn idle_secs_parses_positive_value() {
+        std::env::set_var("IWIYWI_IDLE_SECS", "15");
+        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(15)));
+        std::env::remove_var("IWIYWI_IDLE_SECS");
+    }
+
+    #[test]
+    fn idle_secs_falls_back_to_default_on_garbage() {
+        std::env::set_var("IWIYWI_IDLE_SECS", "not-a-number");
+        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(60)));
+        std::env::remove_var("IWIYWI_IDLE_SECS");
     }
 }
