@@ -1,24 +1,21 @@
 use qrcode::{render::unicode, QrCode};
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
-/// Renders a full-screen centered QR code overlay for the given URL.
-pub fn render_qr_overlay(frame: &mut Frame, url: &str, area: Rect) {
+use crate::tui::theme::Theme;
+
+pub fn render_qr_overlay(frame: &mut Frame, theme: &Theme, url: &str, area: Rect) {
     let qr_string = generate_qr_string(url);
-    let lines: Vec<Line> = qr_string
-        .lines()
-        .map(|l| Line::from(l))
-        .collect();
+    let lines: Vec<Line> = qr_string.lines().map(Line::from).collect();
 
     let qr_width = lines.first().map(|l| l.width() as u16).unwrap_or(0) + 4;
     let qr_height = lines.len() as u16 + 4;
 
-    // Center the overlay
     let x = area.x + area.width.saturating_sub(qr_width) / 2;
     let y = area.y + area.height.saturating_sub(qr_height) / 2;
     let popup = Rect {
@@ -32,13 +29,10 @@ pub fn render_qr_overlay(frame: &mut Frame, url: &str, area: Rect) {
     let block = Block::default()
         .title(hint)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Blue));
+        .border_style(Style::default().fg(theme.border));
 
     frame.render_widget(Clear, popup);
-    frame.render_widget(
-        Paragraph::new(Text::from(lines)).block(block),
-        popup,
-    );
+    frame.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
 }
 
 pub fn generate_qr_string(url: &str) -> String {
@@ -60,7 +54,7 @@ mod tests {
     fn generate_qr_string_returns_non_empty_for_valid_url() {
         let s = generate_qr_string("https://iwiywi.vercel.app");
         assert!(!s.is_empty());
-        assert!(s.contains('\n')); // multi-line
+        assert!(s.contains('\n'));
     }
 
     #[test]
@@ -71,10 +65,8 @@ mod tests {
     }
 
     #[test]
-    fn generate_qr_string_handles_error_gracefully() {
-        // Empty string (edge case that's safe but might be handled)
+    fn generate_qr_string_handles_empty_string() {
         let s = generate_qr_string("");
         assert!(!s.is_empty());
-        // Should return either a valid QR or error message
     }
 }

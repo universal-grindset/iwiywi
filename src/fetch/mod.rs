@@ -1,24 +1,17 @@
 pub mod classify;
-pub mod deploy;
-pub mod html;
+pub mod gist;
+pub mod markdown;
 pub mod scraper;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
-use std::fs;
-use std::path::PathBuf;
 
-use crate::config::{config_dir, load_env, Config};
+use crate::config::{load_env, save_config, Config};
 use crate::storage::write_readings;
 
 pub async fn run(config: &Config) -> Result<()> {
-    // 1. Pull latest env vars from Vercel
-    let env_path = config_dir().join(".env");
-    println!("Pulling env vars...");
-    deploy::env_pull(&env_path).context("vercel env pull")?;
-    load_env().context("loading .env after pull")?;
+    load_env().context("loading ~/.iwiywi/.env")?;
 
-    // 2. Scrape all sources concurrently
     println!("Scraping sources...");
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(15))
@@ -30,7 +23,6 @@ pub async fn run(config: &Config) -> Result<()> {
         anyhow::bail!("no readings scraped — all sources failed");
     }
 
-    // 3. Classify each reading via Vercel AI Gateway (concurrently)
     println!("Classifying readings...");
     let classify_tasks: Vec<_> = raw_readings
         .into_iter()
@@ -55,21 +47,21 @@ pub async fn run(config: &Config) -> Result<()> {
         anyhow::bail!("all readings failed classification");
     }
 
-    // 4. Save to ~/.iwiywi/readings-YYYY-MM-DD.json
     write_readings(&classified).context("writing readings to disk")?;
     println!("Saved readings to {}", crate::storage::readings_path().display());
 
-    // 5. Render mobile HTML
-    let html = html::render(&classified, &config.vercel.project_url);
-    let dist_dir = PathBuf::from("/tmp/iwiywi-dist");
-    let _ = fs::remove_dir_all(&dist_dir);
-    fs::create_dir_all(&dist_dir)?;
-    fs::write(dist_dir.join("index.html"), html)?;
+    let md = markdown::render(&classified);
+    let gist_id = gist::publish(&md, config.mobile.gist_id.as_deref())
+        .context("publishing gist")?;
 
-    // 6. Deploy to Vercel
-    println!("Deploying to Vercel...");
-    deploy::deploy(&dist_dir).context("vercel deploy")?;
-    println!("Done.");
+    if config.mobile.gist_id.as_deref() != Some(gist_id.as_str()) {
+        let mut updated = config.clone();
+        updated.mobile.gist_id = Some(gist_id.clone());
+        save_config(&updated).context("saving gist_id to config.toml")?;
+        println!("Created gist https://gist.github.com/{gist_id}");
+    } else {
+        println!("Updated gist https://gist.github.com/{gist_id}");
+    }
 
     Ok(())
 }

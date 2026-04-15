@@ -123,9 +123,7 @@ mod tests {
                 model: "anthropic/claude-haiku-4-5".to_string(),
                 gateway_url: server.url(),
             },
-            vercel: crate::config::VercelConfig {
-                project_url: String::new(),
-            },
+            mobile: crate::config::MobileConfig::default(),
         };
 
         let raw = RawReading {
@@ -160,7 +158,7 @@ mod tests {
                 model: "test".to_string(),
                 gateway_url: server.url(),
             },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),
@@ -185,7 +183,7 @@ mod tests {
         let client = Client::new();
         let config = crate::config::Config {
             ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),
@@ -210,7 +208,7 @@ mod tests {
         let client = Client::new();
         let config = crate::config::Config {
             ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),
@@ -236,7 +234,7 @@ mod tests {
         let client = Client::new();
         let config = crate::config::Config {
             ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),
@@ -257,7 +255,7 @@ mod tests {
                 model: "test".to_string(),
                 gateway_url: "https://example.com".to_string(),
             },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),
@@ -283,7 +281,7 @@ mod tests {
         let client = Client::new();
         let config = crate::config::Config {
             ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
 
         let raw = RawReading {
@@ -315,7 +313,7 @@ mod tests {
         let client = Client::new();
         let config = crate::config::Config {
             ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
-            vercel: crate::config::VercelConfig { project_url: String::new() },
+            mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
             source: "Test".to_string(), title: "Test".to_string(),

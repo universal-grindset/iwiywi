@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod qr;
+pub mod theme;
 pub mod widgets;
 
 use crate::models::ClassifiedReading;
@@ -11,31 +12,115 @@ pub enum Mode {
     QrOverlay,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Tab {
+    All,
+    Steps,
+    Help,
+}
+
+impl Tab {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Tab::All => "All",
+            Tab::Steps => "Steps",
+            Tab::Help => "Help",
+        }
+    }
+
+    pub fn key(&self) -> char {
+        match self {
+            Tab::All => 'a',
+            Tab::Steps => 's',
+            Tab::Help => '?',
+        }
+    }
+
+    pub fn next(&self) -> Tab {
+        match self {
+            Tab::All => Tab::Steps,
+            Tab::Steps => Tab::Help,
+            Tab::Help => Tab::All,
+        }
+    }
+
+    pub fn prev(&self) -> Tab {
+        match self {
+            Tab::All => Tab::Help,
+            Tab::Steps => Tab::All,
+            Tab::Help => Tab::Steps,
+        }
+    }
+}
+
 pub struct App {
     pub readings: Vec<ClassifiedReading>,
     pub scroll: usize,
     pub mode: Mode,
-    pub vercel_url: String,
+    pub tab: Tab,
+    pub step_filter: u8,
+    pub qr_url: String,
+    pub theme: theme::Theme,
 }
 
 impl App {
-    pub fn new(readings: Vec<ClassifiedReading>, vercel_url: String) -> Self {
+    pub fn new(
+        readings: Vec<ClassifiedReading>,
+        qr_url: String,
+        theme: theme::Theme,
+    ) -> Self {
         App {
             readings,
             scroll: 0,
             mode: Mode::Normal,
-            vercel_url,
+            tab: Tab::All,
+            step_filter: 1,
+            qr_url,
+            theme,
+        }
+    }
+
+    fn visible_len(&self) -> usize {
+        match self.tab {
+            Tab::All => self.readings.len(),
+            Tab::Steps => self
+                .readings
+                .iter()
+                .filter(|r| r.step == self.step_filter)
+                .count(),
+            Tab::Help => 0,
         }
     }
 
     pub fn scroll_down(&mut self) {
-        if self.scroll + 1 < self.readings.len() {
+        let max = self.visible_len().saturating_sub(1);
+        if self.scroll < max {
             self.scroll += 1;
         }
     }
 
     pub fn scroll_up(&mut self) {
         self.scroll = self.scroll.saturating_sub(1);
+    }
+
+    pub fn set_tab(&mut self, tab: Tab) {
+        if self.tab != tab {
+            self.tab = tab;
+            self.scroll = 0;
+        }
+    }
+
+    pub fn next_tab(&mut self) { self.set_tab(self.tab.next()); }
+    pub fn prev_tab(&mut self) { self.set_tab(self.tab.prev()); }
+
+    pub fn step_next(&mut self) {
+        self.step_filter = if self.step_filter >= 12 { 1 } else { self.step_filter + 1 };
+        self.scroll = 0;
+    }
+
+    pub fn step_prev(&mut self) {
+        self.step_filter = if self.step_filter <= 1 { 12 } else { self.step_filter - 1 };
+        self.scroll = 0;
     }
 
     pub fn enter_command_mode(&mut self) {
@@ -91,6 +176,7 @@ mod tests {
                 },
             ],
             "https://iwiywi.vercel.app".to_string(),
+            theme::Theme::dark(),
         )
     }
 
@@ -100,7 +186,7 @@ mod tests {
         assert_eq!(app.scroll, 0);
         app.scroll_down();
         assert_eq!(app.scroll, 1);
-        app.scroll_down(); // at end — should not go past
+        app.scroll_down();
         assert_eq!(app.scroll, 1);
     }
 
@@ -151,6 +237,39 @@ mod tests {
         app.toggle_qr();
         assert_eq!(app.mode, Mode::Normal);
     }
+
+    #[test]
+    fn next_tab_cycles_through_all_three() {
+        let mut app = fixture_app();
+        assert_eq!(app.tab, Tab::All);
+        app.next_tab(); assert_eq!(app.tab, Tab::Steps);
+        app.next_tab(); assert_eq!(app.tab, Tab::Help);
+        app.next_tab(); assert_eq!(app.tab, Tab::All);
+    }
+
+    #[test]
+    fn set_tab_resets_scroll() {
+        let mut app = fixture_app();
+        app.scroll = 1;
+        app.set_tab(Tab::Steps);
+        assert_eq!(app.scroll, 0);
+    }
+
+    #[test]
+    fn step_next_wraps_at_twelve() {
+        let mut app = fixture_app();
+        app.step_filter = 12;
+        app.step_next();
+        assert_eq!(app.step_filter, 1);
+    }
+
+    #[test]
+    fn step_prev_wraps_at_one() {
+        let mut app = fixture_app();
+        app.step_filter = 1;
+        app.step_prev();
+        assert_eq!(app.step_filter, 12);
+    }
 }
 
 use anyhow::Result;
@@ -175,7 +294,7 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let mut app = App::new(readings, config.vercel.project_url);
+    let mut app = App::new(readings, crate::config::qr_url(&config), theme::detect());
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -191,6 +310,13 @@ pub fn run() -> Result<()> {
                 match &app.mode {
                     Mode::Normal => match key.code {
                         KeyCode::Char('q') => break,
+                        KeyCode::Char('a') => app.set_tab(Tab::All),
+                        KeyCode::Char('s') => app.set_tab(Tab::Steps),
+                        KeyCode::Char('?') => app.set_tab(Tab::Help),
+                        KeyCode::Tab => app.next_tab(),
+                        KeyCode::BackTab => app.prev_tab(),
+                        KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
+                        KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
                         KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
                         KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                         KeyCode::Char('/') => app.enter_command_mode(),
@@ -217,7 +343,6 @@ pub fn run() -> Result<()> {
                         _ => {}
                     },
                     Mode::QrOverlay => {
-                        // Any key dismisses
                         app.dismiss();
                     }
                 }

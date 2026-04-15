@@ -1,26 +1,33 @@
 use anyhow::{Context, Result};
 use chrono::Local;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::config_dir;
 use crate::models::ClassifiedReading;
 
-pub fn readings_path() -> PathBuf {
+fn readings_path_in(dir: &Path) -> PathBuf {
     let date = Local::now().format("%Y-%m-%d").to_string();
-    config_dir().join(format!("readings-{date}.json"))
+    dir.join(format!("readings-{date}.json"))
 }
 
-pub fn write_readings(readings: &[ClassifiedReading]) -> Result<()> {
-    let dir = config_dir();
-    fs::create_dir_all(&dir).context("creating ~/.iwiywi")?;
+pub fn readings_path() -> PathBuf {
+    readings_path_in(&config_dir())
+}
+
+fn write_readings_in(dir: &Path, readings: &[ClassifiedReading]) -> Result<()> {
+    fs::create_dir_all(dir).context("creating config dir")?;
     let json = serde_json::to_string_pretty(readings).context("serializing readings")?;
-    fs::write(readings_path(), json).context("writing readings JSON")?;
+    fs::write(readings_path_in(dir), json).context("writing readings JSON")?;
     Ok(())
 }
 
-pub fn read_readings() -> Result<Vec<ClassifiedReading>> {
-    let path = readings_path();
+pub fn write_readings(readings: &[ClassifiedReading]) -> Result<()> {
+    write_readings_in(&config_dir(), readings)
+}
+
+fn read_readings_in(dir: &Path) -> Result<Vec<ClassifiedReading>> {
+    let path = readings_path_in(dir);
     if !path.exists() {
         return Ok(vec![]);
     }
@@ -28,10 +35,15 @@ pub fn read_readings() -> Result<Vec<ClassifiedReading>> {
     serde_json::from_str(&s).context("parsing readings JSON")
 }
 
+pub fn read_readings() -> Result<Vec<ClassifiedReading>> {
+    read_readings_in(&config_dir())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::ClassifiedReading;
+    use tempfile::tempdir;
 
     fn fixture() -> ClassifiedReading {
         ClassifiedReading {
@@ -46,15 +58,21 @@ mod tests {
 
     #[test]
     fn write_then_read_round_trips() {
+        let dir = tempdir().unwrap();
         let readings = vec![fixture()];
-        // Call actual module functions
-        write_readings(&readings).expect("write failed");
-        let back = read_readings().expect("read failed");
+        write_readings_in(dir.path(), &readings).expect("write failed");
+        let back = read_readings_in(dir.path()).expect("read failed");
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].step, 7);
         assert_eq!(back[0].source, "Test");
     }
 
+    #[test]
+    fn read_readings_missing_file_returns_empty() {
+        let dir = tempdir().unwrap();
+        let back = read_readings_in(dir.path()).expect("read failed");
+        assert!(back.is_empty());
+    }
 
     #[test]
     fn json_serialization_with_special_characters() {
