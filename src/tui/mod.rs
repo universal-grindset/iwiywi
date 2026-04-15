@@ -1,5 +1,4 @@
 pub mod clipboard;
-pub mod clock;
 pub mod drift;
 pub mod export;
 pub mod help;
@@ -15,7 +14,10 @@ pub mod widgets;
 
 use anyhow::Result;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+        MouseButton, MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -520,7 +522,7 @@ pub fn run(
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -616,7 +618,6 @@ pub fn run(
                 let frame_area = f.area();
                 {
                     let buf = f.buffer_mut();
-                    clock::draw(buf, frame_area, &eff_palette);
                     status::draw_moon_anchor(
                         buf, frame_area, &eff_palette, app.sobriety_days,
                     );
@@ -655,7 +656,26 @@ pub fn run(
         app.poll_ai();
 
         if event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
+            let ev = event::read()?;
+            if let Event::Mouse(MouseEvent { kind, .. }) = ev {
+                // Any mouse activity wakes idle dim-down.
+                app.last_input = Instant::now();
+                if let MouseEventKind::Down(MouseButton::Left) = kind {
+                    // Clicks close overlays first; otherwise they copy the
+                    // current pulse item. Menus are mouse-dismissable too.
+                    if app.help_open {
+                        app.help_open = false;
+                    } else if app.ai_overlay.is_some() {
+                        app.close_overlay();
+                    } else if app.menu_open {
+                        app.menu_open = false;
+                    } else {
+                        app.copy_current();
+                    }
+                }
+                continue;
+            }
+            if let Event::Key(key) = ev {
                 if key.kind != KeyEventKind::Press { continue; }
                 // Any keypress wakes the UI from idle dim-down and resets
                 // the idle timer.
@@ -757,7 +777,7 @@ pub fn run(
     }
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen)?;
     Ok(())
 }
 

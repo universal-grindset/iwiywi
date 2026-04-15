@@ -55,6 +55,19 @@ pub enum Variant {
     Sepulchral,
     Wraith,
     Abyssal,
+    // 12 popular terminal color schemes using authentic RGB values.
+    SolarizedDark,
+    SolarizedLight,
+    GruvboxDark,
+    GruvboxLight,
+    Dracula,
+    TokyoNight,
+    Catppuccin,
+    OneDark,
+    Monokai,
+    Synthwave,
+    Ayu,
+    Kanagawa,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +82,7 @@ pub struct Palette {
 }
 
 impl Variant {
-    pub const ALL: [Variant; 39] = [
+    pub const ALL: [Variant; 51] = [
         Variant::Default, Variant::Warm, Variant::Cool, Variant::Mono,
         Variant::Sunset, Variant::Sage, Variant::Dawn, Variant::Dusk,
         Variant::Ember, Variant::Ocean, Variant::Rose, Variant::Forest,
@@ -83,6 +96,12 @@ impl Variant {
         Variant::Tundra, Variant::Necrotic, Variant::Cascadian,
         Variant::IronOath, Variant::Hellfire, Variant::Sepulchral,
         Variant::Wraith, Variant::Abyssal,
+        // --- popular terminal schemes ---
+        Variant::SolarizedDark, Variant::SolarizedLight,
+        Variant::GruvboxDark, Variant::GruvboxLight,
+        Variant::Dracula, Variant::TokyoNight, Variant::Catppuccin,
+        Variant::OneDark, Variant::Monokai, Variant::Synthwave,
+        Variant::Ayu, Variant::Kanagawa,
     ];
 
     pub fn parse(raw: Option<&str>) -> Variant {
@@ -123,8 +142,20 @@ impl Variant {
             Some("iron_oath")     => Variant::IronOath,
             Some("hellfire")      => Variant::Hellfire,
             Some("sepulchral")    => Variant::Sepulchral,
-            Some("wraith")        => Variant::Wraith,
-            Some("abyssal")       => Variant::Abyssal,
+            Some("wraith")           => Variant::Wraith,
+            Some("abyssal")          => Variant::Abyssal,
+            Some("solarized_dark")   => Variant::SolarizedDark,
+            Some("solarized_light")  => Variant::SolarizedLight,
+            Some("gruvbox_dark")     => Variant::GruvboxDark,
+            Some("gruvbox_light")    => Variant::GruvboxLight,
+            Some("dracula")          => Variant::Dracula,
+            Some("tokyo_night")      => Variant::TokyoNight,
+            Some("catppuccin")       => Variant::Catppuccin,
+            Some("onedark")          => Variant::OneDark,
+            Some("monokai")          => Variant::Monokai,
+            Some("synthwave")        => Variant::Synthwave,
+            Some("ayu")              => Variant::Ayu,
+            Some("kanagawa")         => Variant::Kanagawa,
             _ => Variant::Default,
         }
     }
@@ -168,8 +199,20 @@ impl Variant {
             Variant::IronOath     => "iron_oath",
             Variant::Hellfire     => "hellfire",
             Variant::Sepulchral   => "sepulchral",
-            Variant::Wraith       => "wraith",
-            Variant::Abyssal      => "abyssal",
+            Variant::Wraith          => "wraith",
+            Variant::Abyssal         => "abyssal",
+            Variant::SolarizedDark   => "solarized_dark",
+            Variant::SolarizedLight  => "solarized_light",
+            Variant::GruvboxDark     => "gruvbox_dark",
+            Variant::GruvboxLight    => "gruvbox_light",
+            Variant::Dracula         => "dracula",
+            Variant::TokyoNight      => "tokyo_night",
+            Variant::Catppuccin      => "catppuccin",
+            Variant::OneDark         => "onedark",
+            Variant::Monokai         => "monokai",
+            Variant::Synthwave       => "synthwave",
+            Variant::Ayu             => "ayu",
+            Variant::Kanagawa        => "kanagawa",
         }
     }
 }
@@ -575,6 +618,99 @@ impl Palette {
                 Color::Rgb(0x9E, 0xC4, 0xD0),
                 Color::Rgb(0x2F, 0x4A, 0x54),
             ),
+
+            // --- Popular terminal schemes (authentic RGB from official palettes) ---
+
+            // Solarized Dark — Ethan Schoonover, blue accent on base03.
+            (Mode::Dark, Variant::SolarizedDark) => (
+                Color::Reset,
+                Color::Rgb(0x26, 0x8B, 0xD2),
+                Color::Rgb(0x83, 0x94, 0x96),
+                Color::Rgb(0x58, 0x6E, 0x75),
+            ),
+            (Mode::Light, Variant::SolarizedDark) => (
+                Color::Reset,
+                Color::Rgb(0x26, 0x8B, 0xD2),
+                Color::Rgb(0x83, 0x94, 0x96),
+                Color::Rgb(0x58, 0x6E, 0x75),
+            ),
+            // Solarized Light — magenta accent (also from the official
+            // Solarized palette) for visual distinction from Dark's blue.
+            (_, Variant::SolarizedLight) => (
+                Color::Reset,
+                Color::Rgb(0xD3, 0x36, 0x82),
+                Color::Rgb(0x65, 0x7B, 0x83),
+                Color::Rgb(0x93, 0xA1, 0xA1),
+            ),
+            // Gruvbox Dark — Pavel Pertsev.
+            (_, Variant::GruvboxDark) => (
+                Color::Reset,
+                Color::Rgb(0xFE, 0x80, 0x19),
+                Color::Rgb(0xEB, 0xDB, 0xB2),
+                Color::Rgb(0x92, 0x83, 0x74),
+            ),
+            (_, Variant::GruvboxLight) => (
+                Color::Reset,
+                Color::Rgb(0xAF, 0x3A, 0x03),
+                Color::Rgb(0x3C, 0x38, 0x36),
+                Color::Rgb(0x7C, 0x6F, 0x64),
+            ),
+            // Dracula — Zeno Rocha.
+            (_, Variant::Dracula) => (
+                Color::Reset,
+                Color::Rgb(0xBD, 0x93, 0xF9),
+                Color::Rgb(0xF8, 0xF8, 0xF2),
+                Color::Rgb(0x62, 0x72, 0xA4),
+            ),
+            // Tokyo Night — Enkia.
+            (_, Variant::TokyoNight) => (
+                Color::Reset,
+                Color::Rgb(0x7A, 0xA2, 0xF7),
+                Color::Rgb(0xC0, 0xCA, 0xF5),
+                Color::Rgb(0x56, 0x5F, 0x89),
+            ),
+            // Catppuccin Mocha — mauve on base.
+            (_, Variant::Catppuccin) => (
+                Color::Reset,
+                Color::Rgb(0xCB, 0xA6, 0xF7),
+                Color::Rgb(0xCD, 0xD6, 0xF4),
+                Color::Rgb(0x7F, 0x84, 0x9C),
+            ),
+            // OneDark — Atom's signature scheme.
+            (_, Variant::OneDark) => (
+                Color::Reset,
+                Color::Rgb(0x61, 0xAF, 0xEF),
+                Color::Rgb(0xAB, 0xB2, 0xBF),
+                Color::Rgb(0x5C, 0x63, 0x70),
+            ),
+            // Monokai — Wimer Hazenberg, the classic.
+            (_, Variant::Monokai) => (
+                Color::Reset,
+                Color::Rgb(0xF9, 0x26, 0x72),
+                Color::Rgb(0xF8, 0xF8, 0xF2),
+                Color::Rgb(0x75, 0x71, 0x5E),
+            ),
+            // Synthwave — neon pink + purple, 80s retro.
+            (_, Variant::Synthwave) => (
+                Color::Reset,
+                Color::Rgb(0xF9, 0x2A, 0xAD),
+                Color::Rgb(0xF9, 0xF9, 0xFA),
+                Color::Rgb(0x88, 0x54, 0xD0),
+            ),
+            // Ayu Mirage — soft yellow accent.
+            (_, Variant::Ayu) => (
+                Color::Reset,
+                Color::Rgb(0xFF, 0xD1, 0x73),
+                Color::Rgb(0xCB, 0xCC, 0xC6),
+                Color::Rgb(0x70, 0x7A, 0x8C),
+            ),
+            // Kanagawa Wave — Rebelot, Japanese ukiyo-e inspired.
+            (_, Variant::Kanagawa) => (
+                Color::Reset,
+                Color::Rgb(0x7E, 0x9C, 0xD8),
+                Color::Rgb(0xDC, 0xD7, 0xBA),
+                Color::Rgb(0x72, 0x71, 0x69),
+            ),
         };
         Palette { mode, variant, bg, accent, body, muted }
     }
@@ -694,7 +830,7 @@ mod tests {
     #[test]
     fn all_variants_covers_enum() {
         // Guard against adding a variant and forgetting to append to ALL.
-        assert_eq!(Variant::ALL.len(), 39);
+        assert_eq!(Variant::ALL.len(), 51);
     }
 
     #[test]

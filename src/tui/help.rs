@@ -48,7 +48,7 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("F", "showcase mode (fullscreen)"),
         ("m", "settings menu"),
         ("f", "favorite / unfavorite"),
-        ("c", "copy current item"),
+        ("c / click", "copy current item"),
         ("e", "export today"),
         ("j", "journal (AI-seeded prompt + $EDITOR)"),
         ("?", "this help"),
