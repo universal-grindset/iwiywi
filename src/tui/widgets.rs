@@ -15,10 +15,11 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if let Mode::Drift = &app.mode {
         if let Some(state) = &app.drift {
-            let reading = &app.readings[state.reading_idx % app.readings.len()];
-            let alpha = crate::tui::drift::reading_alpha(state.reading_phase_start.elapsed());
-            crate::tui::drift::render(frame, state, &app.theme, reading, alpha);
-            return;
+            if let Some(item) = state.mixer.current() {
+                let alpha = crate::tui::drift::reading_alpha(state.reading_phase_start.elapsed());
+                crate::tui::drift::render(frame, state, &app.theme, item, alpha);
+                return;
+            }
         }
     }
 

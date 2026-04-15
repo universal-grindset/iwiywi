@@ -33,7 +33,7 @@ pub struct DriftState {
     pub particles: Vec<Particle>,
     noise: Perlin,
     pub start: Instant,
-    pub reading_idx: usize,
+    pub mixer: crate::pulse::PulseMixer,
     pub reading_phase_start: Instant,
 }
 
@@ -59,7 +59,12 @@ fn pseudo_rand(seed: u32, n: usize) -> f32 {
 }
 
 impl DriftState {
-    pub fn new(width: u16, height: u16, seed: u32) -> Self {
+    pub fn new(
+        width: u16,
+        height: u16,
+        seed: u32,
+        mixer: crate::pulse::PulseMixer,
+    ) -> Self {
         let count = particle_count(width, height);
         let particles = (0..count)
             .map(|i| Particle {
@@ -73,7 +78,7 @@ impl DriftState {
             particles,
             noise: Perlin::new(seed),
             start: now,
-            reading_idx: 0,
+            mixer,
             reading_phase_start: now,
         }
     }
@@ -138,7 +143,6 @@ fn rgb(c: Color) -> (u8, u8, u8) {
     }
 }
 
-use crate::models::ClassifiedReading;
 use crate::tui::theme::Theme;
 use ratatui::{
     layout::Rect,
@@ -154,13 +158,12 @@ pub fn render(
     frame: &mut Frame,
     state: &DriftState,
     theme: &Theme,
-    reading: &ClassifiedReading,
+    item: &crate::pulse::PulseItem,
     reading_alpha: f32,
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    // Particles: draw trails oldest → newest so the head sits on top.
     if area.width >= 40 && area.height >= 15 {
         for p in &state.particles {
             for (i, pos) in p.trail.iter().enumerate().rev() {
@@ -184,7 +187,6 @@ pub fn render(
         }
     }
 
-    // Reading overlay
     if reading_alpha <= 0.0 {
         return;
     }
@@ -194,25 +196,20 @@ pub fn render(
 
     let header = Line::from(vec![
         Span::styled(
-            format!("Step {}", reading.step),
-            Style::default()
-                .fg(faded_accent)
-                .add_modifier(Modifier::BOLD),
+            item.label.clone(),
+            Style::default().fg(faded_accent).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!("  ·  {}", reading.source),
-            Style::default().fg(faded_muted),
-        ),
+        Span::styled(format!("  ·  {:?}", item.kind), Style::default().fg(faded_muted)),
     ]);
     let body = Line::from(Span::styled(
-        reading.text.clone(),
+        item.body.clone(),
         Style::default().fg(faded_body),
     ));
 
     let text = vec![header, Line::from(""), body];
     let width = (area.width as f32 * 0.6).min(72.0) as u16;
     let width = width.max(20);
-    let est_height: u16 = 3 + (reading.text.len() as u16 / width.max(1)) + 1;
+    let est_height: u16 = 3 + (item.body.len() as u16 / width.max(1)) + 1;
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(est_height)) / 2;
     let overlay = Rect {
@@ -272,10 +269,14 @@ mod tests {
         assert!(reading_alpha(READING_CYCLE + Duration::from_millis(1)) < 0.01);
     }
 
+    fn empty_mixer() -> crate::pulse::PulseMixer {
+        crate::pulse::PulseMixer::from_sources(&[], None)
+    }
+
     #[test]
     fn new_scales_particle_count_with_area() {
-        let small = DriftState::new(40, 20, 1);
-        let large = DriftState::new(160, 50, 1);
+        let small = DriftState::new(40, 20, 1, empty_mixer());
+        let large = DriftState::new(160, 50, 1, empty_mixer());
         assert!(large.particles.len() > small.particles.len());
         assert!(small.particles.len() >= 10);
         assert!(large.particles.len() <= 120);
@@ -283,7 +284,7 @@ mod tests {
 
     #[test]
     fn particles_stay_in_bounds_after_many_ticks() {
-        let mut s = DriftState::new(80, 24, 1);
+        let mut s = DriftState::new(80, 24, 1, empty_mixer());
         for _ in 0..200 {
             s.tick(80, 24, Duration::from_millis(50));
         }
@@ -299,7 +300,7 @@ mod tests {
 
     #[test]
     fn trail_length_is_four_after_four_ticks() {
-        let mut s = DriftState::new(80, 24, 1);
+        let mut s = DriftState::new(80, 24, 1, empty_mixer());
         for _ in 0..4 {
             s.tick(80, 24, Duration::from_millis(50));
         }
@@ -332,7 +333,7 @@ mod tests {
 
     #[test]
     fn resize_rescatters_particles_into_new_bounds() {
-        let mut s = DriftState::new(120, 40, 1);
+        let mut s = DriftState::new(120, 40, 1, empty_mixer());
         s.resize(40, 20);
         for p in &s.particles {
             assert!(p.x >= 0.0 && p.x < 40.0);
@@ -342,7 +343,7 @@ mod tests {
 
     #[test]
     fn resize_adjusts_particle_count_both_directions() {
-        let mut grow = DriftState::new(40, 20, 1);
+        let mut grow = DriftState::new(40, 20, 1, empty_mixer());
         let grow_before = grow.particles.len();
         grow.resize(160, 50);
         assert!(
@@ -350,7 +351,7 @@ mod tests {
             "grow should add particles"
         );
 
-        let mut shrink = DriftState::new(160, 50, 1);
+        let mut shrink = DriftState::new(160, 50, 1, empty_mixer());
         let shrink_before = shrink.particles.len();
         shrink.resize(40, 20);
         assert!(
@@ -361,7 +362,7 @@ mod tests {
 
     #[test]
     fn resize_to_zero_clears_particles() {
-        let mut s = DriftState::new(80, 24, 1);
+        let mut s = DriftState::new(80, 24, 1, empty_mixer());
         assert!(!s.particles.is_empty());
         s.resize(0, 0);
         assert!(s.particles.is_empty());

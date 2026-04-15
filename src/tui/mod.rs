@@ -66,6 +66,7 @@ pub struct App {
     pub last_input: std::time::Instant,
     pub idle_threshold: Option<std::time::Duration>,
     pub drift: Option<drift::DriftState>,
+    pub pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>>,
 }
 
 impl App {
@@ -74,6 +75,7 @@ impl App {
         qr_url: String,
         theme: theme::Theme,
         idle_threshold: Option<std::time::Duration>,
+        pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>>,
     ) -> Self {
         App {
             readings,
@@ -86,6 +88,7 @@ impl App {
             last_input: std::time::Instant::now(),
             idle_threshold,
             drift: None,
+            pulse_sources,
         }
     }
 
@@ -180,31 +183,26 @@ impl App {
     }
 
     pub fn maybe_enter_drift(&mut self, width: u16, height: u16) {
-        let Some(threshold) = self.idle_threshold else {
-            return;
-        };
-        if self.mode != Mode::Normal {
-            return;
-        }
-        if self.readings.is_empty() {
-            return;
-        }
-        if self.last_input.elapsed() < threshold {
-            return;
-        }
+        let Some(threshold) = self.idle_threshold else { return; };
+        if self.mode != Mode::Normal { return; }
+        if self.last_input.elapsed() < threshold { return; }
+        self.enter_pulse(width, height, None);
+    }
+
+    pub fn enter_pulse(&mut self, width: u16, height: u16, filter_step: Option<u8>) {
+        let mixer = crate::pulse::PulseMixer::from_sources(&self.pulse_sources, filter_step);
+        if mixer.is_empty() { return; }
         let seed = self.last_input.elapsed().as_nanos() as u32;
-        self.drift = Some(drift::DriftState::new(width, height, seed));
+        self.drift = Some(drift::DriftState::new(width, height, seed, mixer));
         self.mode = Mode::Drift;
     }
 
     pub fn drift_tick(&mut self, width: u16, height: u16) {
-        if self.mode != Mode::Drift {
-            return;
-        }
+        if self.mode != Mode::Drift { return; }
         if let Some(state) = self.drift.as_mut() {
             state.tick(width, height, std::time::Duration::from_millis(50));
             if state.reading_phase_start.elapsed() >= drift::READING_CYCLE {
-                state.reading_idx = (state.reading_idx + 1) % self.readings.len();
+                state.mixer.advance();
                 state.reading_phase_start = std::time::Instant::now();
             }
         }
@@ -233,11 +231,23 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
+    let pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>> = vec![
+        Box::new(crate::pulse::today::TodayReadings::from_readings(&readings)),
+        Box::new(crate::pulse::historical::HistoricalReadings::load_from(
+            &crate::config::config_dir(),
+            &format!("readings-{}.json", chrono::Local::now().format("%Y-%m-%d")),
+        )),
+        Box::new(crate::pulse::bundled::BigBookQuotes::load()),
+        Box::new(crate::pulse::bundled::Prayers::load()),
+        Box::new(crate::pulse::bundled::StepExplainers::load()),
+    ];
+
     let mut app = App::new(
         readings,
         crate::config::qr_url(&config),
         theme::detect(),
         crate::config::idle_secs(),
+        pulse_sources,
     );
 
     enable_raw_mode()?;
@@ -345,6 +355,7 @@ mod tests {
             "https://iwiywi.vercel.app".to_string(),
             theme::Theme::dark(),
             None,
+            vec![],
         )
     }
 
@@ -455,7 +466,12 @@ mod tests {
     fn register_input_exits_drift() {
         let mut app = fixture_app();
         app.mode = Mode::Drift;
-        app.drift = Some(drift::DriftState::new(80, 24, 1));
+        let mixer = crate::pulse::PulseMixer::from_sources(
+            &[Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))
+                as Box<dyn crate::pulse::PulseSource>],
+            None,
+        );
+        app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
         app.register_input();
         assert_eq!(app.mode, Mode::Normal);
         assert!(app.drift.is_none());
@@ -481,6 +497,7 @@ mod tests {
     #[test]
     fn maybe_enter_drift_activates_after_threshold() {
         let mut app = fixture_app();
+        app.pulse_sources = vec![Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))];
         app.idle_threshold = Some(std::time::Duration::from_millis(10));
         std::thread::sleep(std::time::Duration::from_millis(20));
         app.maybe_enter_drift(80, 24);
