@@ -190,7 +190,7 @@ impl App {
     }
 
     pub fn enter_pulse(&mut self, width: u16, height: u16, filter_step: Option<u8>) {
-        let mixer = crate::pulse::PulseMixer::from_sources(&self.pulse_sources, filter_step);
+        let mixer = crate::pulse::PulseMixer::from_sources(&self.pulse_sources, filter_step, crate::pulse::Order::Random);
         if mixer.is_empty() { return; }
         let seed = self.last_input.elapsed().as_nanos() as u32;
         let mut state = drift::DriftState::new(width, height, seed, mixer);
@@ -499,6 +499,7 @@ mod tests {
             &[Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))
                 as Box<dyn crate::pulse::PulseSource>],
             None,
+            crate::pulse::Order::Random,
         );
         app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
         app.register_input();
@@ -558,7 +559,7 @@ mod tests {
     fn pulse_random_jump_in_drift_mode_resets_phase_clock() {
         let mut app = fixture_app();
         app.pulse_sources = vec![Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))];
-        let mixer = crate::pulse::PulseMixer::from_sources(&app.pulse_sources, None);
+        let mixer = crate::pulse::PulseMixer::from_sources(&app.pulse_sources, None, crate::pulse::Order::Random);
         app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
         app.mode = Mode::Drift;
         std::thread::sleep(std::time::Duration::from_millis(5));

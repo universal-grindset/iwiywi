@@ -270,7 +270,7 @@ mod tests {
     }
 
     fn empty_mixer() -> crate::pulse::PulseMixer {
-        crate::pulse::PulseMixer::from_sources(&[], None)
+        crate::pulse::PulseMixer::from_sources(&[], None, crate::pulse::Order::Random)
     }
 
     #[test]
