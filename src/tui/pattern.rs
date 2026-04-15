@@ -20,23 +20,36 @@ pub enum Pattern {
     Wave,
     Snow,
     Rain,
+    // Minimal static patterns.
+    Grid,
+    Corners,
+    Dashes,
+    Vignette,
+    Margin,
 }
 
 impl Pattern {
-    pub const ALL: [Pattern; 8] = [
+    pub const ALL: [Pattern; 13] = [
         Pattern::Drift, Pattern::Wave, Pattern::Snow, Pattern::Rain,
         Pattern::None, Pattern::Dots, Pattern::Frame, Pattern::Rule,
+        Pattern::Grid, Pattern::Corners, Pattern::Dashes, Pattern::Vignette,
+        Pattern::Margin,
     ];
 
     pub fn parse(raw: Option<&str>) -> Pattern {
         match raw {
-            Some("none")  => Pattern::None,
-            Some("dots")  => Pattern::Dots,
-            Some("frame") => Pattern::Frame,
-            Some("rule")  => Pattern::Rule,
-            Some("wave")  => Pattern::Wave,
-            Some("snow")  => Pattern::Snow,
-            Some("rain")  => Pattern::Rain,
+            Some("none")     => Pattern::None,
+            Some("dots")     => Pattern::Dots,
+            Some("frame")    => Pattern::Frame,
+            Some("rule")     => Pattern::Rule,
+            Some("wave")     => Pattern::Wave,
+            Some("snow")     => Pattern::Snow,
+            Some("rain")     => Pattern::Rain,
+            Some("grid")     => Pattern::Grid,
+            Some("corners")  => Pattern::Corners,
+            Some("dashes")   => Pattern::Dashes,
+            Some("vignette") => Pattern::Vignette,
+            Some("margin")   => Pattern::Margin,
             // Default when unset or unrecognized: drift (the swirly pretties).
             _ => Pattern::Drift,
         }
@@ -44,14 +57,19 @@ impl Pattern {
 
     pub fn label(&self) -> &'static str {
         match self {
-            Pattern::None  => "none",
-            Pattern::Dots  => "dots",
-            Pattern::Frame => "frame",
-            Pattern::Rule  => "rule",
-            Pattern::Drift => "drift",
-            Pattern::Wave  => "wave",
-            Pattern::Snow  => "snow",
-            Pattern::Rain  => "rain",
+            Pattern::None     => "none",
+            Pattern::Dots     => "dots",
+            Pattern::Frame    => "frame",
+            Pattern::Rule     => "rule",
+            Pattern::Drift    => "drift",
+            Pattern::Wave     => "wave",
+            Pattern::Snow     => "snow",
+            Pattern::Rain     => "rain",
+            Pattern::Grid     => "grid",
+            Pattern::Corners  => "corners",
+            Pattern::Dashes   => "dashes",
+            Pattern::Vignette => "vignette",
+            Pattern::Margin   => "margin",
         }
     }
 
@@ -85,9 +103,14 @@ pub fn draw(buf: &mut Buffer, area: Rect, text_rect: Rect, palette: &Palette, pa
         // Animated patterns (drift/wave/snow/rain) draw directly from
         // `widgets::render_pulse` via the shared DriftState — not here.
         Pattern::None | Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain => {}
-        Pattern::Dots => draw_dots(buf, area, palette),
-        Pattern::Frame => draw_frame(buf, text_rect, palette),
-        Pattern::Rule => draw_rule(buf, text_rect, palette),
+        Pattern::Dots     => draw_dots(buf, area, palette),
+        Pattern::Frame    => draw_frame(buf, text_rect, palette),
+        Pattern::Rule     => draw_rule(buf, text_rect, palette),
+        Pattern::Grid     => draw_grid(buf, area, palette),
+        Pattern::Corners  => draw_corners(buf, text_rect, palette),
+        Pattern::Dashes   => draw_dashes(buf, area, palette),
+        Pattern::Vignette => draw_vignette(buf, area, palette),
+        Pattern::Margin   => draw_margin(buf, area, palette),
     }
 }
 
@@ -142,6 +165,104 @@ fn draw_rule(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
     }
 }
 
+/// Sparse dot-grid — one `·` every 8 cols × 4 rows. Reads as very faint
+/// graph paper.
+fn draw_grid(buf: &mut Buffer, area: Rect, palette: &Palette) {
+    if area.width < 10 || area.height < 4 { return; }
+    let style = Style::default().fg(palette.muted);
+    let step_x: u16 = 8;
+    let step_y: u16 = 4;
+    let mut y = area.y + (step_y / 2);
+    while y < area.y + area.height {
+        let mut x = area.x + (step_x / 2);
+        while x < area.x + area.width {
+            buf[(x, y)].set_symbol("·").set_style(style);
+            x += step_x;
+        }
+        y += step_y;
+    }
+}
+
+/// L-bracket markers at the four corners of the centered text rect.
+/// Subtle frame cue without drawing the whole box.
+fn draw_corners(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
+    if text_rect.width < 6 || text_rect.height < 4 { return; }
+    // Pad out one cell so the brackets don't touch the text.
+    let x0 = text_rect.x.saturating_sub(1);
+    let y0 = text_rect.y.saturating_sub(1);
+    let x1 = text_rect.x + text_rect.width;
+    let y1 = text_rect.y + text_rect.height;
+    let style = Style::default().fg(palette.muted);
+    for (x, y, s) in [
+        (x0, y0, "┌"), (x1, y0, "┐"),
+        (x0, y1, "└"), (x1, y1, "┘"),
+    ] {
+        if x < buf.area.right() && y < buf.area.bottom() {
+            buf[(x, y)].set_symbol(s).set_style(style);
+        }
+    }
+}
+
+/// Horizontal dash line at the very top and bottom rows of `area` —
+/// minimal typographic top/bottom markers.
+fn draw_dashes(buf: &mut Buffer, area: Rect, palette: &Palette) {
+    if area.width < 10 || area.height < 3 { return; }
+    let style = Style::default().fg(palette.muted);
+    let top = area.y;
+    let bottom = area.y + area.height - 1;
+    for x in area.x..(area.x + area.width) {
+        buf[(x, top)].set_symbol("─").set_style(style);
+        buf[(x, bottom)].set_symbol("─").set_style(style);
+    }
+}
+
+/// Dots denser near the four corners, falling off toward the center.
+/// Uses the same xorshift hash as `dots` for a consistent texture, but
+/// samples more aggressively in a corner-proximity weighted way.
+fn draw_vignette(buf: &mut Buffer, area: Rect, palette: &Palette) {
+    if area.width < 12 || area.height < 6 { return; }
+    let style = Style::default().fg(palette.muted);
+    let w = u32::from(area.width);
+    let h = u32::from(area.height);
+    // 5-cell-radius corner clusters at all four corners.
+    let r: u32 = 5;
+    let corners = [
+        (0u32, 0u32),
+        (w.saturating_sub(1), 0),
+        (0, h.saturating_sub(1)),
+        (w.saturating_sub(1), h.saturating_sub(1)),
+    ];
+    for (cx, cy) in corners {
+        for i in 0..(r * r) {
+            let dx = pseudo_rand(0xC0FF_EE42, i as usize) % (r * 2);
+            let dy = pseudo_rand(0xC0FF_EE42, i as usize * 2 + 1) % (r * 2);
+            let x = cx.saturating_add_signed((dx as i32) - (r as i32));
+            let y = cy.saturating_add_signed((dy as i32) - (r as i32));
+            if x < w && y < h {
+                buf[(area.x + x as u16, area.y + y as u16)]
+                    .set_symbol("·")
+                    .set_style(style);
+            }
+        }
+    }
+}
+
+/// Thin vertical bars at the far-left and far-right columns of `area`,
+/// broken into short runs so the effect stays quiet.
+fn draw_margin(buf: &mut Buffer, area: Rect, palette: &Palette) {
+    if area.width < 4 || area.height < 6 { return; }
+    let style = Style::default().fg(palette.muted);
+    let left = area.x;
+    let right = area.x + area.width - 1;
+    // Every third row — leaves two cells of breathing room between ticks.
+    let mut y = area.y + 1;
+    while y < area.y + area.height - 1 {
+        buf[(left, y)].set_symbol("│").set_style(style);
+        buf[(right, y)].set_symbol("│").set_style(style);
+        y += 3;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,11 +274,36 @@ mod tests {
     }
 
     #[test]
-    fn pattern_parse_each() {
-        assert_eq!(Pattern::parse(Some("none")), Pattern::None);
-        assert_eq!(Pattern::parse(Some("dots")), Pattern::Dots);
-        assert_eq!(Pattern::parse(Some("frame")), Pattern::Frame);
-        assert_eq!(Pattern::parse(Some("rule")), Pattern::Rule);
-        assert_eq!(Pattern::parse(Some("drift")), Pattern::Drift);
+    fn pattern_parse_each_round_trips() {
+        for p in Pattern::ALL {
+            assert_eq!(Pattern::parse(Some(p.label())), p,
+                "pattern {} failed round-trip", p.label());
+        }
+    }
+
+    #[test]
+    fn all_patterns_covers_enum() {
+        assert_eq!(Pattern::ALL.len(), 13);
+    }
+
+    #[test]
+    fn animated_flag_matches_drift_modes() {
+        for p in Pattern::ALL {
+            let animated = p.is_animated();
+            let expected = matches!(p,
+                Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain);
+            assert_eq!(animated, expected,
+                "is_animated disagrees for {}", p.label());
+        }
+    }
+
+    #[test]
+    fn new_minimal_patterns_are_static() {
+        // Sanity: none of the five new minimal patterns claim animation.
+        for p in [Pattern::Grid, Pattern::Corners, Pattern::Dashes,
+                  Pattern::Vignette, Pattern::Margin] {
+            assert!(!p.is_animated(),
+                "new pattern {} shouldn't be animated", p.label());
+        }
     }
 }

@@ -10,6 +10,7 @@ use crate::pulse::PulseItem;
 use crate::tui::drift::{self, DriftState};
 use crate::tui::palette::Palette;
 use crate::tui::pattern::{self, Pattern};
+use crate::tui::text_size::TextSize;
 
 pub fn render_pulse(
     frame: &mut Frame,
@@ -17,13 +18,16 @@ pub fn render_pulse(
     palette: &Palette,
     pattern: Pattern,
     drift_state: Option<&DriftState>,
+    text_size: TextSize,
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
     let Some(item) = item else { return; };
 
-    let width = (area.width as f32 * 0.7).clamp(20.0, 72.0) as u16;
+    let (clamp_lo, clamp_hi) = text_size.width_clamp();
+    let width = (area.width as f32 * text_size.width_ratio())
+        .clamp(clamp_lo, clamp_hi) as u16;
     let w = width.max(1) as usize;
     // Per-line ceiling-divide so we never under-count, count explicit
     // newlines as hard breaks, and add a safety margin for word-wrap slack
@@ -60,7 +64,7 @@ pub fn render_pulse(
     ));
     let body = Line::from(Span::styled(
         item.body.clone(),
-        Style::default().fg(palette.body),
+        Style::default().fg(palette.body).add_modifier(text_size.body_modifier()),
     ));
 
     Paragraph::new(vec![label, kind, Line::from(""), body])

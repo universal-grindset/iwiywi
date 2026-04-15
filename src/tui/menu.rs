@@ -11,12 +11,13 @@ use ratatui::{
 
 use crate::tui::palette::Palette;
 
-pub const ROW_COUNT: usize = 5;
+pub const ROW_COUNT: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
     Palette,
     Pattern,
+    TextSize,
     Order,
     Focus,
     PulseSecs,
@@ -27,8 +28,9 @@ impl Row {
         match i % ROW_COUNT {
             0 => Row::Palette,
             1 => Row::Pattern,
-            2 => Row::Order,
-            3 => Row::Focus,
+            2 => Row::TextSize,
+            3 => Row::Order,
+            4 => Row::Focus,
             _ => Row::PulseSecs,
         }
     }
@@ -37,6 +39,7 @@ impl Row {
         match self {
             Row::Palette   => "Palette",
             Row::Pattern   => "Pattern",
+            Row::TextSize  => "Text size",
             Row::Order     => "Order",
             Row::Focus     => "Focus",
             Row::PulseSecs => "Pulse secs",
@@ -57,7 +60,7 @@ pub fn render(
     let buf = frame.buffer_mut();
 
     let width: u16 = 40;
-    let height: u16 = 9;
+    let height: u16 = 10;
     if area.width < width || area.height < height { return; }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -117,8 +120,8 @@ mod tests {
     #[test]
     fn row_by_index_cycles() {
         assert_eq!(Row::by_index(0), Row::Palette);
-        assert_eq!(Row::by_index(4), Row::PulseSecs);
-        assert_eq!(Row::by_index(5), Row::Palette);
+        assert_eq!(Row::by_index(ROW_COUNT - 1), Row::PulseSecs);
+        assert_eq!(Row::by_index(ROW_COUNT), Row::Palette);
     }
 
     #[test]

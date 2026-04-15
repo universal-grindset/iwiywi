@@ -8,6 +8,7 @@ pub mod overlay;
 pub mod palette;
 pub mod pattern;
 pub mod status;
+pub mod text_size;
 pub mod widgets;
 
 use anyhow::Result;
@@ -76,6 +77,7 @@ pub struct App {
     pub sources: Vec<Box<dyn PulseSource>>,
     pub palette: palette::Palette,
     pub pattern: pattern::Pattern,
+    pub text_size: text_size::TextSize,
     pub order: Order,
     pub focus: Focus,
     pub focus_step: Option<u8>,
@@ -406,6 +408,10 @@ impl App {
                     self.drift = None;
                 }
             }
+            menu::Row::TextSize => {
+                let next = pulse::cycle(&text_size::TextSize::ALL, self.text_size, delta);
+                self.text_size = next;
+            }
             menu::Row::Order => {
                 let next = pulse::cycle(&Order::ALL, self.order, delta);
                 self.order = next;
@@ -429,6 +435,7 @@ impl App {
         [
             self.palette.variant.label().to_string(),
             self.pattern.label().to_string(),
+            self.text_size.label().to_string(),
             self.order.label().to_string(),
             self.focus.label().to_string(),
             self.pulse_secs.map_or("manual".to_string(), |d| d.as_secs().to_string()),
@@ -469,6 +476,7 @@ pub fn run(
     let order = pulse::order_from_env();
     let palette = palette::from_env();
     let pattern = pattern::from_env();
+    let text_size = text_size::from_env();
     let pulse_secs = config::pulse_secs();
     let _ = cfg;
 
@@ -515,6 +523,7 @@ pub fn run(
         sources,
         palette,
         pattern,
+        text_size,
         order,
         focus,
         focus_step: None,
@@ -550,7 +559,7 @@ pub fn run(
             }
         }
         terminal.draw(|f| {
-            widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref());
+            widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref(), app.text_size);
             let progress = if app.paused {
                 None
             } else {
@@ -712,6 +721,7 @@ mod tests {
             sources,
             palette: palette::Palette::build(palette::Mode::Dark, palette::Variant::Default),
             pattern: pattern::Pattern::None,
+            text_size: text_size::TextSize::Normal,
             order: Order::Random,
             focus: Focus::All,
             focus_step: None,
