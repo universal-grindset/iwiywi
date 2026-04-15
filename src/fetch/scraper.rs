@@ -36,7 +36,7 @@ fn trim_boilerplate(text: &str) -> String {
                 .map(|p| p + 1)
                 .unwrap_or_else(|| {
                     out[..idx]
-                        .rfind(|c: char| matches!(c, '.' | '!' | '?'))
+                        .rfind(['.', '!', '?'])
                         .map(|p| p + 1)
                         .unwrap_or(idx)
                 });
