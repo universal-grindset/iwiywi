@@ -39,7 +39,9 @@ iwiywi install
 - QR overlay (`/qr`) for mobile handoff
 - Adaptive light/dark palette, auto-detected from terminal background
 - Runs daily at 6am via launchd
-- Idle screensaver: flow-field drift animation cycles today's readings after 60s
+- Idle screensaver: flow-field drift animation cycles your readings after 60s
+- On-demand pulse with `p` (any tab) or `r` (single random item from anywhere)
+- Step-focused pulse: pick a step on the Steps tab and press Enter
 
 ## Theme
 
@@ -66,6 +68,19 @@ export IWIYWI_IDLE_SECS=0    # never activate
 Requirements:
 - `VERCEL_AI_GATEWAY_TOKEN` in `~/.iwiywi/.env` (classification).
 - `gh` CLI authenticated (`gh auth login`) for gist publishing.
+
+## What pulses
+
+The pulse animation cycles through a mix of:
+
+- **Today's readings** — the day's classified readings.
+- **Historical readings** — every prior `readings-*.json` saved in `~/.iwiywi/`.
+- **Big Book quotes** — verbatim passages from the public-domain portion (pp. 1–164).
+- **AA prayers** — Serenity, Third Step, Seventh Step, Eleventh Step (St. Francis), Set Aside, Acceptance, the Promises.
+- **The 12 Steps** — verbatim text of each Step.
+- **The 12 Principles** — Honesty, Hope, Faith, Courage, Integrity, Willingness, Humility, Brotherly Love, Justice, Perseverance, Spirituality, Service.
+
+A step-focused pulse (`Enter` on the Steps tab) shows only items tagged with the current step — including the Step text and its Principle, so the mixer is never empty.
 
 <details>
 <summary>Troubleshooting</summary>

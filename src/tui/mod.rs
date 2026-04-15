@@ -66,6 +66,7 @@ pub struct App {
     pub last_input: std::time::Instant,
     pub idle_threshold: Option<std::time::Duration>,
     pub drift: Option<drift::DriftState>,
+    pub pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>>,
 }
 
 impl App {
@@ -74,6 +75,7 @@ impl App {
         qr_url: String,
         theme: theme::Theme,
         idle_threshold: Option<std::time::Duration>,
+        pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>>,
     ) -> Self {
         App {
             readings,
@@ -86,6 +88,7 @@ impl App {
             last_input: std::time::Instant::now(),
             idle_threshold,
             drift: None,
+            pulse_sources,
         }
     }
 
@@ -180,31 +183,38 @@ impl App {
     }
 
     pub fn maybe_enter_drift(&mut self, width: u16, height: u16) {
-        let Some(threshold) = self.idle_threshold else {
-            return;
-        };
-        if self.mode != Mode::Normal {
-            return;
-        }
-        if self.readings.is_empty() {
-            return;
-        }
-        if self.last_input.elapsed() < threshold {
-            return;
-        }
+        let Some(threshold) = self.idle_threshold else { return; };
+        if self.mode != Mode::Normal { return; }
+        if self.last_input.elapsed() < threshold { return; }
+        self.enter_pulse(width, height, None);
+    }
+
+    pub fn enter_pulse(&mut self, width: u16, height: u16, filter_step: Option<u8>) {
+        let mixer = crate::pulse::PulseMixer::from_sources(&self.pulse_sources, filter_step);
+        if mixer.is_empty() { return; }
         let seed = self.last_input.elapsed().as_nanos() as u32;
-        self.drift = Some(drift::DriftState::new(width, height, seed));
+        let mut state = drift::DriftState::new(width, height, seed, mixer);
+        state.mixer.random_jump(seed);
+        self.drift = Some(state);
         self.mode = Mode::Drift;
     }
 
-    pub fn drift_tick(&mut self, width: u16, height: u16) {
-        if self.mode != Mode::Drift {
-            return;
+    pub fn pulse_random_jump(&mut self) {
+        if self.mode != Mode::Drift { return; }
+        if let Some(state) = self.drift.as_mut() {
+            if state.mixer.is_empty() { return; }
+            let seed = self.last_input.elapsed().as_nanos() as u32;
+            state.mixer.random_jump(seed);
+            state.reading_phase_start = std::time::Instant::now();
         }
+    }
+
+    pub fn drift_tick(&mut self, width: u16, height: u16) {
+        if self.mode != Mode::Drift { return; }
         if let Some(state) = self.drift.as_mut() {
             state.tick(width, height, std::time::Duration::from_millis(50));
             if state.reading_phase_start.elapsed() >= drift::READING_CYCLE {
-                state.reading_idx = (state.reading_idx + 1) % self.readings.len();
+                state.mixer.advance();
                 state.reading_phase_start = std::time::Instant::now();
             }
         }
@@ -233,11 +243,23 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
+    let pulse_sources: Vec<Box<dyn crate::pulse::PulseSource>> = vec![
+        Box::new(crate::pulse::today::TodayReadings::from_readings(&readings)),
+        Box::new(crate::pulse::historical::HistoricalReadings::load_from(
+            &crate::config::config_dir(),
+            &format!("readings-{}.json", chrono::Local::now().format("%Y-%m-%d")),
+        )),
+        Box::new(crate::pulse::bundled::BigBookQuotes::load()),
+        Box::new(crate::pulse::bundled::Prayers::load()),
+        Box::new(crate::pulse::bundled::StepExplainers::load()),
+    ];
+
     let mut app = App::new(
         readings,
         crate::config::qr_url(&config),
         theme::detect(),
         crate::config::idle_secs(),
+        pulse_sources,
     );
 
     enable_raw_mode()?;
@@ -261,17 +283,34 @@ pub fn run() -> Result<()> {
                     if key.kind != crossterm::event::KeyEventKind::Press {
                         continue;
                     }
+                    // Special-case: `r` inside Drift re-rolls instead of exiting.
+                    if app.mode == Mode::Drift && key.code == KeyCode::Char('r') {
+                        app.last_input = std::time::Instant::now();
+                        app.pulse_random_jump();
+                        continue;
+                    }
                     app.register_input();
                     match &app.mode {
                         Mode::Normal => match key.code {
                             KeyCode::Char('q') => break,
                             KeyCode::Char('a') => app.set_tab(Tab::All),
+                            KeyCode::Char('p') => {
+                                app.enter_pulse(size.width, size.height, None);
+                            }
+                            KeyCode::Char('r') => {
+                                app.enter_pulse(size.width, size.height, None);
+                                app.pulse_random_jump();
+                            }
                             KeyCode::Char('s') => app.set_tab(Tab::Steps),
                             KeyCode::Char('?') => app.set_tab(Tab::Help),
                             KeyCode::Tab => app.next_tab(),
                             KeyCode::BackTab => app.prev_tab(),
                             KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
                             KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
+                            KeyCode::Enter if app.tab == Tab::Steps => {
+                                let step = app.step_filter;
+                                app.enter_pulse(size.width, size.height, Some(step));
+                            }
                             KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
                             KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                             KeyCode::Char('/') => app.enter_command_mode(),
@@ -345,6 +384,7 @@ mod tests {
             "https://iwiywi.vercel.app".to_string(),
             theme::Theme::dark(),
             None,
+            vec![],
         )
     }
 
@@ -455,7 +495,12 @@ mod tests {
     fn register_input_exits_drift() {
         let mut app = fixture_app();
         app.mode = Mode::Drift;
-        app.drift = Some(drift::DriftState::new(80, 24, 1));
+        let mixer = crate::pulse::PulseMixer::from_sources(
+            &[Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))
+                as Box<dyn crate::pulse::PulseSource>],
+            None,
+        );
+        app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
         app.register_input();
         assert_eq!(app.mode, Mode::Normal);
         assert!(app.drift.is_none());
@@ -481,6 +526,7 @@ mod tests {
     #[test]
     fn maybe_enter_drift_activates_after_threshold() {
         let mut app = fixture_app();
+        app.pulse_sources = vec![Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))];
         app.idle_threshold = Some(std::time::Duration::from_millis(10));
         std::thread::sleep(std::time::Duration::from_millis(20));
         app.maybe_enter_drift(80, 24);
@@ -489,9 +535,9 @@ mod tests {
     }
 
     #[test]
-    fn maybe_enter_drift_noop_when_readings_empty() {
+    fn maybe_enter_drift_noop_when_pulse_sources_empty() {
         let mut app = fixture_app();
-        app.readings.clear();
+        // pulse_sources is empty by default in fixture_app, so the mixer will be empty.
         app.idle_threshold = Some(std::time::Duration::from_millis(1));
         std::thread::sleep(std::time::Duration::from_millis(10));
         app.maybe_enter_drift(80, 24);
@@ -506,5 +552,19 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(10));
         app.maybe_enter_drift(80, 24);
         assert!(matches!(app.mode, Mode::Command(_)));
+    }
+
+    #[test]
+    fn pulse_random_jump_in_drift_mode_resets_phase_clock() {
+        let mut app = fixture_app();
+        app.pulse_sources = vec![Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))];
+        let mixer = crate::pulse::PulseMixer::from_sources(&app.pulse_sources, None);
+        app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
+        app.mode = Mode::Drift;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let before = app.drift.as_ref().unwrap().reading_phase_start;
+        app.pulse_random_jump();
+        let after = app.drift.as_ref().unwrap().reading_phase_start;
+        assert!(after > before, "phase clock should reset");
     }
 }

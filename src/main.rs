@@ -2,6 +2,7 @@ mod config;
 mod fetch;
 mod install;
 mod models;
+mod pulse;
 mod storage;
 mod tui;
 
