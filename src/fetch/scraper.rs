@@ -21,14 +21,26 @@ fn trim_boilerplate(text: &str) -> String {
         "Copyright (c)",
         "© ",
         "is the official Website",
-        "Alcoholics Anonymous and the",
+        "Alcoholics Anonymous” and the",
+        "Videos or graphic images",
+        "World Services, Inc.",
     ];
     let mut out = text.to_string();
     for m in markers {
         if let Some(idx) = out.find(m) {
-            // Cut at the start of the line containing the marker.
-            let line_start = out[..idx].rfind('\n').map(|p| p + 1).unwrap_or(0);
-            out.truncate(line_start);
+            // Cut at the start of the line containing the marker. For
+            // single-line content, back up to the last sentence terminator
+            // before the marker so we drop any partial pre-marker words.
+            let cut = out[..idx]
+                .rfind('\n')
+                .map(|p| p + 1)
+                .unwrap_or_else(|| {
+                    out[..idx]
+                        .rfind(|c: char| matches!(c, '.' | '!' | '?'))
+                        .map(|p| p + 1)
+                        .unwrap_or(idx)
+                });
+            out.truncate(cut);
         }
     }
     out.trim().to_string()
@@ -137,16 +149,18 @@ pub async fn scrape_all(client: &Client, config: &crate::config::Config) -> Vec<
 }
 
 pub fn parse_aa_org(html: &str) -> Option<RawReading> {
-    // IMPLEMENTATION NOTE: Visit https://www.aa.org/daily-reflections during
-    // implementation and inspect the HTML to confirm selector below.
-    // Common pattern: the reading text is in a <div class="field-item"> or similar.
+    // Daily Reflections format: a Big Book quote, a page citation, and a
+    // personal reflection across multiple <p>s. Join them all and let the
+    // boilerplate trimmer drop the trademark footer.
     let document = Html::parse_document(html);
     let sel = Selector::parse(".field--name-body p").ok()?;
     let text: String = document
         .select(&sel)
-        .next()
-        .map(|e| e.text().collect::<String>().trim().to_string())
-        .unwrap_or_default();
+        .map(|e| e.text().collect::<String>())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_string();
     if text.is_empty() {
         return None;
     }
@@ -353,6 +367,24 @@ mod tests {
     fn trim_boilerplate_cuts_at_official_website_line() {
         let raw = "Reading body.\nThis is the official Website of the General Service Office.";
         assert_eq!(trim_boilerplate(raw), "Reading body.");
+    }
+
+    #[test]
+    fn trim_boilerplate_cuts_at_marker_when_no_newline() {
+        // The previous version dropped the entire body when there was no
+        // newline before the boilerplate. Now it keeps the body and only
+        // strips from the marker forward.
+        let raw = "The reading body. This is the official Website of the General Service Office.";
+        assert_eq!(trim_boilerplate(raw), "The reading body.");
+    }
+
+    #[test]
+    fn trim_boilerplate_handles_concatenated_aa_org_footer() {
+        let raw = "Made a decision to turn our will and our lives over to the care of God.   This is the official Website of the General Service Office (GSO) of Alcoholics Anonymous. Videos or graphic images may not be downloaded. All rights reserved.";
+        let cleaned = trim_boilerplate(raw);
+        assert!(cleaned.starts_with("Made a decision"));
+        assert!(!cleaned.contains("official Website"));
+        assert!(!cleaned.contains("All rights reserved"));
     }
 
 }
