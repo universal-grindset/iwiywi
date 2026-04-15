@@ -158,7 +158,14 @@ pub struct App {
     pub search_matches: Vec<usize>,
     /// Which match index is currently displayed.
     pub search_cursor: usize,
+    /// When Some, a pulse-item transition is in progress. Render applies
+    /// a brief dim-to-bright fade so item swaps feel like view changes
+    /// rather than instant teleports. Per tui-design skill: view
+    /// transitions are 100–200ms, never block user input.
+    pub transition_started: Option<Instant>,
 }
+
+const TRANSITION_MS: u64 = 150;
 
 const IDLE_DIM_AFTER: Duration = Duration::from_secs(300);
 const IDLE_DIM_FACTOR: f32 = 0.32;
@@ -180,6 +187,7 @@ impl App {
         let s = self.next_seed();
         self.mixer.advance_per_order(self.order, s);
         self.last_advance = Instant::now();
+        self.begin_transition();
     }
 
     pub fn prev(&mut self) {
@@ -187,12 +195,53 @@ impl App {
         let len = self.mixer.len();
         for _ in 0..len.saturating_sub(1) { self.mixer.advance(); }
         self.last_advance = Instant::now();
+        self.begin_transition();
     }
 
     pub fn random(&mut self) {
         let s = self.next_seed();
         self.mixer.random_jump(s);
         self.last_advance = Instant::now();
+        self.begin_transition();
+    }
+
+    fn begin_transition(&mut self) {
+        self.transition_started = Some(Instant::now());
+    }
+
+    /// Multiplier in 0.4..=1.0 — starts dim right after an advance, ramps
+    /// back to full over `TRANSITION_MS`. Caller applies via `Palette::dim`.
+    /// Clears `transition_started` once elapsed.
+    pub fn transition_dim(&mut self) -> Option<f32> {
+        let t = self.transition_started?;
+        let ms = t.elapsed().as_millis() as f32;
+        if ms >= TRANSITION_MS as f32 {
+            self.transition_started = None;
+            return None;
+        }
+        let alpha = ms / TRANSITION_MS as f32;
+        Some(0.4 + 0.6 * alpha)
+    }
+
+    /// Context-sensitive hints for the status bar's right slot. Changes
+    /// per mode so the user always sees what's actionable right now.
+    pub fn status_hints(&self) -> &'static str {
+        if self.search_mode {
+            return "Enter·jump  Esc·cancel";
+        }
+        if self.ai_overlay.is_some() {
+            return "j/k·scroll  Esc/a·close";
+        }
+        if self.help_open {
+            return "any·close";
+        }
+        if self.menu_open {
+            return "↑↓·pick  ←→·cycle  Esc·close";
+        }
+        if !self.search_matches.is_empty() {
+            return "n/N·match  *·clear  ?·help";
+        }
+        "n·next  /·search  ?·help  q·quit"
     }
 
     pub fn set_step_focus(&mut self, step: u8) {
@@ -855,6 +904,7 @@ pub async fn run(
         search_query: String::new(),
         search_matches: Vec::new(),
         search_cursor: 0,
+        transition_started: None,
     };
 
     // Spawn background AI tasks. Each runs as a tokio::spawn'd task on
@@ -898,6 +948,11 @@ pub async fn run(
             app.palette
         };
         if idle { eff_palette = eff_palette.dim(IDLE_DIM_FACTOR); }
+        // View transition: brief dim-to-bright fade after any item swap.
+        if let Some(factor) = app.transition_dim() {
+            eff_palette = eff_palette.dim(factor);
+        }
+        let hints: &str = app.status_hints();
 
         app.last_draw = Instant::now();
         terminal.draw(|f| {
@@ -937,6 +992,7 @@ pub async fn run(
                     } else {
                         Some(app.search_matches.len())
                     },
+                    hints,
                 };
                 status::render(f, &eff_palette, &status_line);
                 if app.menu_open {
@@ -1068,6 +1124,7 @@ mod tests {
             search_query: String::new(),
             search_matches: Vec::new(),
             search_cursor: 0,
+            transition_started: None,
         }
     }
 

@@ -31,6 +31,10 @@ pub struct StatusLine<'a> {
     /// Number of matches for a submitted search. Shown after the query
     /// exits search mode so the user knows how many `n`/`N` stops exist.
     pub search_match_count: Option<usize>,
+    /// Context-sensitive keyboard hints. When non-empty, take over the
+    /// right slot ahead of the sobriety day counter. Tui-design skill:
+    /// "Help shows what's actionable right now, not everything ever."
+    pub hints: &'a str,
 }
 
 pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
@@ -111,7 +115,9 @@ fn left_text(status: &StatusLine) -> String {
 }
 
 fn right_text(status: &StatusLine) -> String {
+    // Priority: transient toast > contextual hints > sobriety anchor.
     if let Some(msg) = status.toast { return msg.to_string(); }
+    if !status.hints.is_empty() { return status.hints.to_string(); }
     status.sobriety_days.map_or(String::new(), |d| {
         if d < 0 { String::new() } else { format!("Day {d}") }
     })
@@ -161,7 +167,7 @@ mod tests {
         StatusLine {
             mixer, focus: Focus::All, focus_step: None,
             pulse_progress: None, sobriety_days: None, paused: false, toast: None,
-            search_query: None, search_match_count: None,
+            search_query: None, search_match_count: None, hints: "",
         }
     }
 
