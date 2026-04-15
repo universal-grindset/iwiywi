@@ -109,6 +109,26 @@ pub fn idle_secs() -> Option<std::time::Duration> {
     parse_idle_secs(std::env::var("IWIYWI_IDLE_SECS").ok().as_deref())
 }
 
+const DEFAULT_PULSE_SECS: u64 = 20;
+
+/// Parse `IWIYWI_PULSE_SECS`. Returns `Some(Duration)` for auto-advance,
+/// `None` for manual-only. Default 20s when unset; 0 → None.
+pub fn parse_pulse_secs(raw: Option<&str>) -> Option<std::time::Duration> {
+    let secs: u64 = match raw {
+        None => DEFAULT_PULSE_SECS,
+        Some(s) => s.parse().unwrap_or(DEFAULT_PULSE_SECS),
+    };
+    if secs == 0 {
+        None
+    } else {
+        Some(std::time::Duration::from_secs(secs))
+    }
+}
+
+pub fn pulse_secs() -> Option<std::time::Duration> {
+    parse_pulse_secs(std::env::var("IWIYWI_PULSE_SECS").ok().as_deref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,5 +225,25 @@ mod tests {
             parse_idle_secs(Some("-5")),
             Some(std::time::Duration::from_secs(60))
         );
+    }
+
+    #[test]
+    fn parse_pulse_secs_defaults_to_twenty_when_none() {
+        assert_eq!(parse_pulse_secs(None), Some(std::time::Duration::from_secs(20)));
+    }
+
+    #[test]
+    fn parse_pulse_secs_returns_none_for_zero() {
+        assert_eq!(parse_pulse_secs(Some("0")), None);
+    }
+
+    #[test]
+    fn parse_pulse_secs_parses_positive_value() {
+        assert_eq!(parse_pulse_secs(Some("45")), Some(std::time::Duration::from_secs(45)));
+    }
+
+    #[test]
+    fn parse_pulse_secs_falls_back_on_garbage() {
+        assert_eq!(parse_pulse_secs(Some("xx")), Some(std::time::Duration::from_secs(20)));
     }
 }
