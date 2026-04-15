@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod drift;
 pub mod palette;
+pub mod pattern;
 pub mod qr;
 pub mod theme;
 pub mod widgets;
