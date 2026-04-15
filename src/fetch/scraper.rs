@@ -82,13 +82,12 @@ pub async fn scrape_all(client: &Client, config: &crate::config::Config) -> Vec<
         }
     }
 
-    // AI-extracted sources: dead-DNS but Wayback has snapshots. Send the
-    // archived HTML to the AI gateway and ask it to extract the reading.
-    let ai_sources: &[(&str, &str, &str, &str)] = &[
-        ("recovering_courage", "https://www.recoveringcourage.com", "Recovering Courage", "Daily Reading"),
-        ("odat", "https://odat.us", "One Day At A Time", "Daily Meditation"),
-        ("joe_and_charlie", "https://joeancharlie.com", "Joe and Charlie", "A Program for You"),
-    ];
+    // AI-extracted sources: dead-DNS sites whose Wayback snapshots can be
+    // sent to the AI gateway for reading extraction. Empty for now —
+    // recoveringcourage/joeancharlie were never archived; odat's only
+    // snapshot is a 2016 redirect with no daily content. Add new entries
+    // here when a usable archive shows up.
+    let ai_sources: &[(&str, &str, &str, &str)] = &[];
     for (key, live_url, source_label, title_label) in ai_sources {
         let wayback = wayback_url(live_url);
         let resp = match client
