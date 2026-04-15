@@ -16,6 +16,10 @@ pub enum PulseKind {
     Prayer,
     StepText,
     Principle,
+    Tradition,
+    Concept,
+    Slogan,
+    Grapevine,
 }
 
 impl PulseKind {
@@ -27,6 +31,10 @@ impl PulseKind {
             PulseKind::Prayer            => "Prayer",
             PulseKind::StepText          => "Step",
             PulseKind::Principle         => "Principle",
+            PulseKind::Tradition         => "Tradition",
+            PulseKind::Concept           => "Concept",
+            PulseKind::Slogan            => "Slogan",
+            PulseKind::Grapevine         => "Grapevine",
         }
     }
 }
