@@ -202,6 +202,7 @@ impl App {
     pub fn pulse_random_jump(&mut self) {
         if self.mode != Mode::Drift { return; }
         if let Some(state) = self.drift.as_mut() {
+            if state.mixer.is_empty() { return; }
             let seed = self.last_input.elapsed().as_nanos() as u32;
             state.mixer.random_jump(seed);
             state.reading_phase_start = std::time::Instant::now();

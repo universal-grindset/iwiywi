@@ -70,7 +70,7 @@ pub async fn scrape_all(client: &Client, config: &crate::config::Config) -> Vec<
 
     let mut results = Vec::new();
     for (key, url, parse_fn) in &sources {
-        match fetch_with_wayback_fallback(&client, url).await {
+        match fetch_with_wayback_fallback(client, url).await {
             Some(html) => {
                 if let Some(reading) = parse_fn(&html) {
                     results.push(reading);

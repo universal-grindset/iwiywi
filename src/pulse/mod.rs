@@ -79,9 +79,15 @@ impl PulseMixer {
         PulseMixer { items, cursor: 0 }
     }
 
+    // `len`, `cursor`, and `all` are part of the public mixer surface — used
+    // today only by tests, but kept available for future callers (debug UI,
+    // logging, alternate cyclers).
+    #[allow(dead_code)]
     pub fn len(&self) -> usize { self.items.len() }
     pub fn is_empty(&self) -> bool { self.items.is_empty() }
+    #[allow(dead_code)]
     pub fn cursor(&self) -> usize { self.cursor }
+    #[allow(dead_code)]
     pub fn all(&self) -> &[PulseItem] { &self.items }
 
     pub fn current(&self) -> Option<&PulseItem> {
