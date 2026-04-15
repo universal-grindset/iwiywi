@@ -71,7 +71,7 @@ export IWIYWI_FOCUS=all          # all today history big_book prayers steps
 
 ## How it works
 
-`iwiywi fetch` scrapes AA daily-reading sources (with a Wayback Machine fallback), asks the configured LLM to classify each to one of the twelve Steps with a short reason, writes the result to `~/.iwiywi/readings-<date>.json`, renders a Markdown view, and publishes it to a GitHub Gist via `gh`. The gist URL is what the QR overlay encodes — scan it and GitHub renders the page on your phone. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file (auto-fetches if missing) and renders the TUI.
+`iwiywi fetch` scrapes AA daily-reading sources (with a Wayback Machine fallback), asks the configured LLM to classify each to one of the twelve Steps with a short reason, and writes the result to `~/.iwiywi/readings-<date>.json`. `iwiywi install` writes a launchd plist that runs `iwiywi fetch` at 6:00 local time. `iwiywi` (no args) reads today's file (auto-fetches if missing), best-effort fetches the Grapevine Quote of the Day (5s timeout, falls back to a bundled corpus on failure), and opens the pulse.
 
 ### Choosing an AI provider
 
@@ -101,8 +101,6 @@ AZURE_OPENAI_API_KEY=<your key>
 ```
 
 Setting `api_version` flips the auth header from `Authorization: Bearer` to `api-key:` and appends `?api-version=…` to the URL.
-
-`gh` CLI authenticated (`gh auth login` with `gist` scope) is required for gist publishing.
 
 ## What pulses
 

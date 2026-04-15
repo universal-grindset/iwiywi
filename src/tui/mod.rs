@@ -70,7 +70,7 @@ impl App {
     }
 }
 
-pub fn run() -> Result<()> {
+pub fn run(grapevine_html: Option<String>) -> Result<()> {
     let cfg = config::load_config()?;
     let readings = read_readings()?;
 
@@ -86,7 +86,7 @@ pub fn run() -> Result<()> {
         Box::new(pulse::bundled::Traditions::load()),
         Box::new(pulse::bundled::Concepts::load()),
         Box::new(pulse::bundled::Slogans::load()),
-        Box::new(pulse::grapevine::Grapevine::from_html(None)),
+        Box::new(pulse::grapevine::Grapevine::from_html(grapevine_html.as_deref())),
     ];
 
     let focus = pulse::focus_from_env();
