@@ -221,7 +221,14 @@ impl PulseMixer {
             }
         }
         match order {
-            Order::ByStep => items.sort_by_key(|i| i.step.unwrap_or(255)),
+            // Hardcoded: walk the 12 canonical Steps verbatim, 1 → 12. If the
+            // user wanted other step-tagged content they'd pick a source via
+            // Focus or stay on Sequential/Random. Principles and everything
+            // else are dropped here.
+            Order::ByStep => {
+                items.retain(|i| i.kind == PulseKind::StepText);
+                items.sort_by_key(|i| i.step.unwrap_or(255));
+            }
             Order::BySource | Order::Random | Order::Sequential => { /* preserved as appended */ }
         }
         PulseMixer { items, cursor: 0 }
@@ -432,18 +439,22 @@ mod tests {
     }
 
     #[test]
-    fn mixer_by_step_sorts_items_by_step_number() {
+    fn mixer_by_step_keeps_only_step_text_sorted() {
+        // ByStep hardcodes the 12 canonical Step texts in order — anything
+        // else (Today readings, Principles, Big Book quotes with step tags)
+        // gets filtered out.
         let s: Box<dyn PulseSource> = Box::new(StubSource {
             name: "s",
             items: vec![
-                item(PulseKind::TodayReading, Some(7), "g"),
-                item(PulseKind::TodayReading, Some(1), "a"),
-                item(PulseKind::TodayReading, Some(3), "c"),
+                item(PulseKind::TodayReading, Some(7), "today-7"),
+                item(PulseKind::StepText, Some(3), "step-3-text"),
+                item(PulseKind::StepText, Some(1), "step-1-text"),
+                item(PulseKind::Principle, Some(1), "principle-1"),
             ],
         });
         let mixer = PulseMixer::from_sources(&[s], None, Order::ByStep);
         let bodies: Vec<&str> = mixer.all().iter().map(|i| i.body.as_str()).collect();
-        assert_eq!(bodies, ["a", "c", "g"]);
+        assert_eq!(bodies, ["step-1-text", "step-3-text"]);
     }
 
     #[test]
