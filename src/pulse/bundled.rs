@@ -76,6 +76,41 @@ impl PulseSource for StepExplainers {
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
+const BIG_BOOK_JSON: &str = include_str!("data/big_book.json");
+
+#[derive(serde::Deserialize)]
+struct BigBookEntry {
+    page: u16,
+    step: Option<u8>,
+    body: String,
+}
+
+pub struct BigBookQuotes {
+    items: Vec<PulseItem>,
+}
+
+impl BigBookQuotes {
+    pub fn load() -> Self {
+        let entries: Vec<BigBookEntry> =
+            serde_json::from_str(BIG_BOOK_JSON).expect("big_book.json malformed");
+        let items = entries
+            .into_iter()
+            .map(|e| PulseItem {
+                kind: PulseKind::BigBookQuote,
+                step: e.step,
+                label: format!("Big Book p. {}", e.page),
+                body: e.body,
+            })
+            .collect();
+        BigBookQuotes { items }
+    }
+}
+
+impl PulseSource for BigBookQuotes {
+    fn name(&self) -> &str { "big_book" }
+    fn items(&self) -> &[PulseItem] { &self.items }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +160,25 @@ mod tests {
         let s = StepExplainers::load();
         let principle = s.items().iter().find(|i| i.step == Some(1) && i.kind == PulseKind::Principle).unwrap();
         assert!(principle.label.contains("Honesty"));
+    }
+
+    #[test]
+    fn big_book_loads_fifteen_quotes() {
+        let bb = BigBookQuotes::load();
+        assert_eq!(bb.items().len(), 15);
+        assert_eq!(bb.name(), "big_book");
+    }
+
+    #[test]
+    fn big_book_step_tags_preserved() {
+        let bb = BigBookQuotes::load();
+        let step3_count = bb.items().iter().filter(|i| i.step == Some(3)).count();
+        assert!(step3_count >= 3, "expected at least 3 Step-3 quotes");
+    }
+
+    #[test]
+    fn big_book_label_includes_page_number() {
+        let bb = BigBookQuotes::load();
+        assert!(bb.items()[0].label.contains("p."));
     }
 }
