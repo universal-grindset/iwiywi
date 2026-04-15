@@ -7,6 +7,14 @@ pub mod grapevine;
 pub mod historical;
 pub mod today;
 
+// Helper hooks used by the settings menu to cycle through value rings.
+pub fn cycle<T: Copy + PartialEq>(values: &[T], current: T, delta: i32) -> T {
+    let idx = values.iter().position(|v| *v == current).unwrap_or(0);
+    let len = values.len() as i32;
+    let next = ((idx as i32 + delta).rem_euclid(len)) as usize;
+    values[next]
+}
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,12 +71,24 @@ pub enum Order {
 }
 
 impl Order {
+    pub const ALL: [Order; 4] =
+        [Order::Random, Order::Sequential, Order::ByStep, Order::BySource];
+
     pub fn parse(raw: Option<&str>) -> Order {
         match raw {
             Some("sequential") => Order::Sequential,
             Some("by-step")    => Order::ByStep,
             Some("by-source")  => Order::BySource,
             _ => Order::Random,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Order::Random     => "random",
+            Order::Sequential => "sequential",
+            Order::ByStep     => "by-step",
+            Order::BySource   => "by-source",
         }
     }
 }
@@ -93,6 +113,28 @@ pub enum Focus {
 }
 
 impl Focus {
+    pub const ALL_VARIANTS: [Focus; 11] = [
+        Focus::All, Focus::Today, Focus::History, Focus::BigBook, Focus::Prayers,
+        Focus::Steps, Focus::Principles, Focus::Grapevine, Focus::Traditions,
+        Focus::Concepts, Focus::Slogans,
+    ];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Focus::All        => "all",
+            Focus::Today      => "today",
+            Focus::History    => "history",
+            Focus::BigBook    => "big_book",
+            Focus::Prayers    => "prayers",
+            Focus::Steps      => "steps",
+            Focus::Principles => "principles",
+            Focus::Grapevine  => "grapevine",
+            Focus::Traditions => "traditions",
+            Focus::Concepts   => "concepts",
+            Focus::Slogans    => "slogans",
+        }
+    }
+
     pub fn parse(raw: Option<&str>) -> Focus {
         match raw {
             Some("today")      => Focus::Today,
@@ -141,14 +183,24 @@ pub struct PulseMixer {
 }
 
 impl PulseMixer {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn from_sources(
         sources: &[Box<dyn PulseSource>],
         filter_step: Option<u8>,
         order: Order,
     ) -> Self {
+        Self::from_sources_focused(sources, filter_step, order, Focus::All)
+    }
+
+    pub fn from_sources_focused(
+        sources: &[Box<dyn PulseSource>],
+        filter_step: Option<u8>,
+        order: Order,
+        focus: Focus,
+    ) -> Self {
         let mut items: Vec<PulseItem> = Vec::new();
         let mut seen: std::collections::HashSet<[u8; 32]> = std::collections::HashSet::new();
-        for src in sources {
+        for src in sources.iter().filter(|s| focus.admits(s.name())) {
             for item in src.items() {
                 if let Some(want) = filter_step {
                     if item.step != Some(want) { continue; }

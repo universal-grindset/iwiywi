@@ -20,6 +20,10 @@ pub enum Pattern {
 }
 
 impl Pattern {
+    pub const ALL: [Pattern; 5] = [
+        Pattern::Drift, Pattern::None, Pattern::Dots, Pattern::Frame, Pattern::Rule,
+    ];
+
     pub fn parse(raw: Option<&str>) -> Pattern {
         match raw {
             Some("none")  => Pattern::None,
@@ -28,6 +32,16 @@ impl Pattern {
             Some("rule")  => Pattern::Rule,
             // Default when unset or unrecognized: drift (the swirly pretties).
             _ => Pattern::Drift,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Pattern::None  => "none",
+            Pattern::Dots  => "dots",
+            Pattern::Frame => "frame",
+            Pattern::Rule  => "rule",
+            Pattern::Drift => "drift",
         }
     }
 }

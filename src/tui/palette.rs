@@ -30,6 +30,11 @@ pub struct Palette {
 }
 
 impl Variant {
+    pub const ALL: [Variant; 8] = [
+        Variant::Default, Variant::Warm, Variant::Cool, Variant::Mono,
+        Variant::Sunset, Variant::Sage, Variant::Dawn, Variant::Dusk,
+    ];
+
     pub fn parse(raw: Option<&str>) -> Variant {
         match raw {
             Some("warm")    => Variant::Warm,
@@ -40,6 +45,19 @@ impl Variant {
             Some("dawn")    => Variant::Dawn,
             Some("dusk")    => Variant::Dusk,
             _ => Variant::Default,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Variant::Default => "default",
+            Variant::Warm    => "warm",
+            Variant::Cool    => "cool",
+            Variant::Mono    => "mono",
+            Variant::Sunset  => "sunset",
+            Variant::Sage    => "sage",
+            Variant::Dawn    => "dawn",
+            Variant::Dusk    => "dusk",
         }
     }
 }

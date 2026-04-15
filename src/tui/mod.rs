@@ -1,4 +1,5 @@
 pub mod drift;
+pub mod menu;
 pub mod palette;
 pub mod pattern;
 pub mod widgets;
@@ -23,6 +24,7 @@ pub struct App {
     pub palette: palette::Palette,
     pub pattern: pattern::Pattern,
     pub order: Order,
+    pub focus: Focus,
     pub focus_step: Option<u8>,
     pub pulse_secs: Option<Duration>,
     pub last_advance: Instant,
@@ -30,11 +32,20 @@ pub struct App {
     /// Live particle state for the `Drift` pattern. `None` for any other
     /// pattern choice. Ticked on each idle poll in the event loop.
     pub drift: Option<drift::DriftState>,
+    /// When true, the settings menu overlays the pulse.
+    pub menu_open: bool,
+    /// Which row of the settings menu is highlighted (0..menu::ROW_COUNT).
+    pub menu_cursor: usize,
 }
 
 impl App {
     pub fn rebuild_mixer(&mut self) {
-        self.mixer = PulseMixer::from_sources(&self.sources, self.focus_step, self.order);
+        self.mixer = PulseMixer::from_sources_focused(
+            &self.sources,
+            self.focus_step,
+            self.order,
+            self.focus,
+        );
     }
 
     pub fn next(&mut self) {
@@ -72,6 +83,73 @@ impl App {
         self.seed_counter = self.seed_counter.wrapping_add(1);
         self.seed_counter
     }
+
+    pub fn menu_row_prev(&mut self) {
+        self.menu_cursor = (self.menu_cursor + menu::ROW_COUNT - 1) % menu::ROW_COUNT;
+    }
+
+    pub fn menu_row_next(&mut self) {
+        self.menu_cursor = (self.menu_cursor + 1) % menu::ROW_COUNT;
+    }
+
+    /// Cycle the currently-highlighted setting. `delta` is +1 or -1.
+    pub fn menu_cycle(&mut self, delta: i32, size_w: u16, size_h: u16) {
+        match menu::Row::by_index(self.menu_cursor) {
+            menu::Row::Palette => {
+                let next = pulse::cycle(&palette::Variant::ALL, self.palette.variant, delta);
+                self.palette = palette::Palette::build(self.palette.mode, next);
+            }
+            menu::Row::Pattern => {
+                let next = pulse::cycle(&pattern::Pattern::ALL, self.pattern, delta);
+                self.pattern = next;
+                // Spin up / tear down the drift particle field to match.
+                if next == pattern::Pattern::Drift && self.drift.is_none() {
+                    self.drift = Some(drift::DriftState::new(size_w, size_h, self.next_seed()));
+                } else if next != pattern::Pattern::Drift {
+                    self.drift = None;
+                }
+            }
+            menu::Row::Order => {
+                let next = pulse::cycle(&Order::ALL, self.order, delta);
+                self.order = next;
+                self.rebuild_mixer();
+            }
+            menu::Row::Focus => {
+                let next = pulse::cycle(&Focus::ALL_VARIANTS, self.focus, delta);
+                self.focus = next;
+                self.rebuild_source_filter();
+                self.rebuild_mixer();
+            }
+            menu::Row::PulseSecs => {
+                let current = self.pulse_secs.map_or(0u64, |d| d.as_secs());
+                let next = pulse::cycle(&menu::PULSE_SECS_RING, current, delta);
+                self.pulse_secs = if next == 0 { None } else { Some(Duration::from_secs(next)) };
+                self.last_advance = Instant::now();
+            }
+        }
+    }
+
+    /// After a Focus change, rebuild the sources vec so only admitted ones
+    /// feed the mixer. Called from `menu_cycle` when Focus changes.
+    fn rebuild_source_filter(&mut self) {
+        // The source set is fixed-at-startup; we keep a canonical copy of
+        // all sources and filter a view for the mixer. For now, Focus is
+        // applied during `from_sources` by matching on source.name() via
+        // the admits filter in PulseMixer. We only need to rebuild when the
+        // source list itself changes — but since we don't drop sources at
+        // runtime in pulse-only mode, this is a no-op stub. Kept as a hook
+        // so `menu_cycle` reads symmetrically for Focus.
+    }
+
+    pub fn current_menu_values(&self) -> [String; menu::ROW_COUNT] {
+        [
+            self.palette.variant.label().to_string(),
+            self.pattern.label().to_string(),
+            self.order.label().to_string(),
+            self.focus.label().to_string(),
+            self.pulse_secs.map_or("manual".to_string(), |d| d.as_secs().to_string()),
+        ]
+    }
 }
 
 pub fn run(grapevine_html: Option<String>) -> Result<()> {
@@ -79,7 +157,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
     let readings = read_readings()?;
 
     let today_basename = format!("readings-{}.json", chrono::Local::now().format("%Y-%m-%d"));
-    let mut sources: Vec<Box<dyn PulseSource>> = vec![
+    let sources: Vec<Box<dyn PulseSource>> = vec![
         Box::new(pulse::today::TodayReadings::from_readings(&readings)),
         Box::new(pulse::historical::HistoricalReadings::load_from(
             &config::config_dir(), &today_basename,
@@ -94,17 +172,22 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
     ];
 
     let focus = pulse::focus_from_env();
-    if focus != Focus::All {
-        sources.retain(|s| focus.admits(s.name()));
-    }
-
     let order = pulse::order_from_env();
     let palette = palette::from_env();
     let pattern = pattern::from_env();
     let pulse_secs = config::pulse_secs();
     let _ = cfg;
 
-    let mixer = PulseMixer::from_sources(&sources, None, order);
+    let mut mixer = PulseMixer::from_sources_focused(&sources, None, order, focus);
+    // Start on a random item so the first thing you see isn't always today's
+    // first reading. Without this, cursor=0 ⇒ first source's first item.
+    if order == Order::Random {
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(1);
+        mixer.random_jump(seed);
+    }
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -134,22 +217,42 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         palette,
         pattern,
         order,
+        focus,
         focus_step: None,
         pulse_secs,
         last_advance: Instant::now(),
         seed_counter: 1,
         drift,
+        menu_open: false,
+        menu_cursor: 0,
     };
 
     loop {
         let size = terminal.size()?;
-        terminal.draw(|f| widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref()))?;
+        terminal.draw(|f| {
+            widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref());
+            if app.menu_open {
+                menu::render(f, &app.palette, app.menu_cursor, app.current_menu_values());
+            }
+        })?;
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press { continue; }
+                if app.menu_open {
+                    match key.code {
+                        KeyCode::Char('m') | KeyCode::Esc | KeyCode::Char('q') => app.menu_open = false,
+                        KeyCode::Up    => app.menu_row_prev(),
+                        KeyCode::Down  => app.menu_row_next(),
+                        KeyCode::Left  => app.menu_cycle(-1, size.width, size.height),
+                        KeyCode::Right => app.menu_cycle( 1, size.width, size.height),
+                        _ => {}
+                    }
+                    continue;
+                }
                 match key.code {
                     KeyCode::Char('q') => break,
+                    KeyCode::Char('m') => app.menu_open = true,
                     KeyCode::Char('n') => app.next(),
                     KeyCode::Char('p') => app.prev(),
                     KeyCode::Char('r') => app.random(),
@@ -213,11 +316,14 @@ mod tests {
             palette: palette::Palette::build(palette::Mode::Dark, palette::Variant::Default),
             pattern: pattern::Pattern::None,
             order: Order::Random,
+            focus: Focus::All,
             focus_step: None,
             pulse_secs: Some(Duration::from_secs(20)),
             last_advance: Instant::now(),
             seed_counter: 1,
             drift: None,
+            menu_open: false,
+            menu_cursor: 0,
         }
     }
 

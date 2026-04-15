@@ -36,7 +36,7 @@ iwiywi fetch
 iwiywi install
 ```
 
-Keys: `n` next · `p` previous · `r` random · `q` quit · `1`–`9` `0` `-` `=` focus on Step N · `*` clear focus.
+Keys: `n` next · `p` previous · `r` random · `q` quit · `1`–`9` `0` `-` `=` focus on Step N · `*` clear focus · **`m` open settings menu** (↑↓ pick, ←→ cycle, Esc close).
 
 ## Features
 
