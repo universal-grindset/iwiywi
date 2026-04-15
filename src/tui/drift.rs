@@ -101,6 +101,18 @@ impl DriftState {
             p.y = wrap(p.y + vy, height as f32);
         }
     }
+
+    pub fn resize(&mut self, width: u16, height: u16) {
+        let want = particle_count(width, height);
+        let seed = self.start.elapsed().as_nanos() as u32;
+        self.particles = (0..want)
+            .map(|i| Particle {
+                x: pseudo_rand(seed, i * 2) * (width as f32),
+                y: pseudo_rand(seed, i * 2 + 1) * (height as f32),
+                trail: [None; 4],
+            })
+            .collect();
+    }
 }
 
 fn wrap(v: f32, max: f32) -> f32 {
@@ -201,5 +213,23 @@ mod tests {
             let r = pseudo_rand(1, n);
             assert!(r >= 0.0 && r < 1.0, "pseudo_rand out of [0,1): {r} at n={n}");
         }
+    }
+
+    #[test]
+    fn resize_rescatters_particles_into_new_bounds() {
+        let mut s = DriftState::new(120, 40, 1);
+        s.resize(40, 20);
+        for p in &s.particles {
+            assert!(p.x >= 0.0 && p.x < 40.0);
+            assert!(p.y >= 0.0 && p.y < 20.0);
+        }
+    }
+
+    #[test]
+    fn resize_adjusts_particle_count() {
+        let mut s = DriftState::new(40, 20, 1);
+        let before = s.particles.len();
+        s.resize(160, 50);
+        assert!(s.particles.len() > before);
     }
 }
