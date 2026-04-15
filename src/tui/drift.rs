@@ -91,22 +91,6 @@ impl DriftState {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn resize(&mut self, width: u16, height: u16) {
-        if width == 0 || height == 0 {
-            self.particles.clear();
-            return;
-        }
-        let want = particle_count(width, height);
-        let seed = self.start.elapsed().as_nanos() as u32;
-        self.particles = (0..want)
-            .map(|i| Particle {
-                x: pseudo_rand(seed, i * 2) * (width as f32),
-                y: pseudo_rand(seed, i * 2 + 1) * (height as f32),
-                trail: [None; 4],
-            })
-            .collect();
-    }
 }
 
 /// Draw the particles + trails into the buffer. Skips rendering when the
@@ -147,13 +131,6 @@ mod tests {
             assert!(p.x >= 0.0 && p.x < 80.0);
             assert!(p.y >= 0.0 && p.y < 24.0);
         }
-    }
-
-    #[test]
-    fn resize_to_zero_clears_particles() {
-        let mut s = DriftState::new(80, 24, 1);
-        s.resize(0, 0);
-        assert!(s.particles.is_empty());
     }
 
     #[test]

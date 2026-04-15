@@ -21,7 +21,7 @@ pub struct AiConfig {
 
 impl Default for Config {
     fn default() -> Self {
-        Config {
+        Self {
             ai: AiConfig {
                 model: "anthropic/claude-haiku-4-5".to_string(),
                 gateway_url: "https://ai-gateway.vercel.sh/v1".to_string(),
@@ -52,14 +52,6 @@ pub fn load_config() -> Result<Config> {
     }
     let s = fs::read_to_string(&path).context("reading config.toml")?;
     toml::from_str(&s).context("parsing config.toml")
-}
-
-#[allow(dead_code)]
-pub fn save_config(cfg: &Config) -> Result<()> {
-    let dir = config_dir();
-    fs::create_dir_all(&dir).context("creating config dir")?;
-    let s = toml::to_string_pretty(cfg).context("serializing config")?;
-    fs::write(config_path(), s).context("writing config.toml")
 }
 
 pub fn load_env() -> Result<()> {

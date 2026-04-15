@@ -1,3 +1,10 @@
+//! Bundled static corpora. All sources here parse `include_str!`-ed JSON
+//! at startup. The `serde_json::from_str(...).expect("...malformed")` calls
+//! below are intentional: the JSON files are compile-time inputs, so a
+//! parse failure means the binary shipped with bad data — a developer
+//! error, not a runtime condition. That's the one place the Apollo "never
+//! `expect` outside tests" rule has a narrow exception.
+
 use crate::pulse::{PulseItem, PulseKind, PulseSource};
 
 const PRAYERS_JSON: &str = include_str!("data/prayers.json");
@@ -25,12 +32,12 @@ impl Prayers {
                 body: e.body,
             })
             .collect();
-        Prayers { items }
+        Self { items }
     }
 }
 
 impl PulseSource for Prayers {
-    fn name(&self) -> &str { "prayers" }
+    fn name(&self) -> &'static str { "prayers" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
@@ -67,12 +74,12 @@ impl StepExplainers {
                 body: e.principle_body,
             });
         }
-        StepExplainers { items }
+        Self { items }
     }
 }
 
 impl PulseSource for StepExplainers {
-    fn name(&self) -> &str { "step_explainers" }
+    fn name(&self) -> &'static str { "step_explainers" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
@@ -102,12 +109,12 @@ impl BigBookQuotes {
                 body: e.body,
             })
             .collect();
-        BigBookQuotes { items }
+        Self { items }
     }
 }
 
 impl PulseSource for BigBookQuotes {
-    fn name(&self) -> &str { "big_book" }
+    fn name(&self) -> &'static str { "big_book" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
@@ -136,12 +143,12 @@ impl Traditions {
                 body: e.body,
             })
             .collect();
-        Traditions { items }
+        Self { items }
     }
 }
 
 impl PulseSource for Traditions {
-    fn name(&self) -> &str { "traditions" }
+    fn name(&self) -> &'static str { "traditions" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
@@ -162,12 +169,12 @@ impl Concepts {
             label: format!("Concept {} for World Service", e.n),
             body: e.body,
         }).collect();
-        Concepts { items }
+        Self { items }
     }
 }
 
 impl PulseSource for Concepts {
-    fn name(&self) -> &str { "concepts" }
+    fn name(&self) -> &'static str { "concepts" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
@@ -185,12 +192,12 @@ impl Slogans {
             label: "Slogan".to_string(),
             body: s,
         }).collect();
-        Slogans { items }
+        Self { items }
     }
 }
 
 impl PulseSource for Slogans {
-    fn name(&self) -> &str { "slogans" }
+    fn name(&self) -> &'static str { "slogans" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 

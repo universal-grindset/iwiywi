@@ -37,15 +37,14 @@ impl Grapevine {
                 body: s,
             });
         }
-        Grapevine { items }
+        Self { items }
     }
 
-    #[allow(dead_code)]
     pub fn live_url() -> &'static str { LIVE_URL }
 }
 
 impl PulseSource for Grapevine {
-    fn name(&self) -> &str { "grapevine" }
+    fn name(&self) -> &'static str { "grapevine" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 

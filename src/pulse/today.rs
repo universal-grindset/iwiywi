@@ -16,12 +16,12 @@ impl TodayReadings {
                 body: r.text.clone(),
             })
             .collect();
-        TodayReadings { items }
+        Self { items }
     }
 }
 
 impl PulseSource for TodayReadings {
-    fn name(&self) -> &str { "today" }
+    fn name(&self) -> &'static str { "today" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 

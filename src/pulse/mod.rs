@@ -131,7 +131,7 @@ pub fn focus_from_env() -> Focus {
 }
 
 pub trait PulseSource {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
     fn items(&self) -> &[PulseItem];
 }
 
@@ -253,7 +253,7 @@ mod tests {
         items: Vec<PulseItem>,
     }
     impl PulseSource for StubSource {
-        fn name(&self) -> &str { self.name }
+        fn name(&self) -> &'static str { self.name }
         fn items(&self) -> &[PulseItem] { &self.items }
     }
 

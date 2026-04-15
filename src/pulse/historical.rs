@@ -13,7 +13,7 @@ impl HistoricalReadings {
         let mut items = Vec::new();
         let entries = match std::fs::read_dir(dir) {
             Ok(e) => e,
-            Err(_) => return HistoricalReadings { items },
+            Err(_) => return Self { items },
         };
         for entry in entries.flatten() {
             let file_name = entry.file_name();
@@ -42,12 +42,12 @@ impl HistoricalReadings {
                 });
             }
         }
-        HistoricalReadings { items }
+        Self { items }
     }
 }
 
 impl PulseSource for HistoricalReadings {
-    fn name(&self) -> &str { "historical" }
+    fn name(&self) -> &'static str { "historical" }
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 

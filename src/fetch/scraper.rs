@@ -31,15 +31,14 @@ fn trim_boilerplate(text: &str) -> String {
             // Cut at the start of the line containing the marker. For
             // single-line content, back up to the last sentence terminator
             // before the marker so we drop any partial pre-marker words.
-            let cut = out[..idx]
-                .rfind('\n')
-                .map(|p| p + 1)
-                .unwrap_or_else(|| {
+            let cut = out[..idx].rfind('\n').map_or_else(
+                || {
                     out[..idx]
                         .rfind(['.', '!', '?'])
-                        .map(|p| p + 1)
-                        .unwrap_or(idx)
-                });
+                        .map_or(idx, |p| p + 1)
+                },
+                |p| p + 1,
+            );
             out.truncate(cut);
         }
     }
