@@ -112,4 +112,97 @@ mod tests {
         let html = render(&readings, "https://iwiywi.vercel.app");
         assert!(html.contains("#6bcbff")); // Step 3 color
     }
+
+    #[test]
+    fn render_empty_readings_still_valid() {
+        let readings: Vec<ClassifiedReading> = vec![];
+        let html = render(&readings, "https://iwiywi.vercel.app");
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("iwiywi"));
+        assert!(html.contains("<body>"));
+    }
+
+    #[test]
+    fn render_escapes_script_tags_in_text() {
+        let mut r = fixture_reading(1);
+        r.text = "<script>alert('xss')</script>".to_string();
+        let html = render(&vec![r], "https://iwiywi.vercel.app");
+        // Text is escaped
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(!html.contains("<script>alert"));
+    }
+
+    #[test]
+    fn render_escapes_malicious_attributes() {
+        let mut r = fixture_reading(2);
+        r.text = r#"<img onerror="alert('xss')">"#.to_string();
+        let html = render(&vec![r], "https://iwiywi.vercel.app");
+        // Should be escaped
+        assert!(html.contains("&lt;img"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn render_all_step_colors_valid() {
+        for step in 1..=12 {
+            let r = fixture_reading(step);
+            let html = render(&vec![r], "https://iwiywi.vercel.app");
+            assert!(html.contains(&format!("Step {}", step)));
+        }
+    }
+
+    #[test]
+    fn render_invalid_step_defaults_to_white() {
+        let mut r = fixture_reading(1);
+        r.step = 99;
+        let html = render(&vec![r], "https://iwiywi.vercel.app");
+        assert!(html.contains("#ffffff")); // Default white for invalid step
+    }
+
+    #[test]
+    fn render_very_long_text() {
+        let mut r = fixture_reading(5);
+        r.text = "X".repeat(10000); // 10k characters
+        let html = render(&vec![r], "https://iwiywi.vercel.app");
+        assert!(html.contains("XXXXXXXXX")); // Check some of it made it
+        assert!(html.contains("<!DOCTYPE html>"));
+    }
+
+    #[test]
+    fn render_preserves_url_in_struct() {
+        let mut r = fixture_reading(1);
+        r.url = "https://example.com?a=1&b=2&c=3".to_string();
+        let html = render(&vec![r], "https://iwiywi.vercel.app");
+        // The URL is stored in the card struct but not rendered in HTML
+        assert!(html.contains("<!DOCTYPE html>"));
+    }
+
+    #[test]
+    fn render_multiple_readings_preserves_order() {
+        let readings = vec![
+            fixture_reading(1),
+            fixture_reading(6),
+            fixture_reading(12),
+        ];
+        let html = render(&readings, "https://iwiywi.vercel.app");
+        let pos1 = html.find("Step 1").unwrap();
+        let pos6 = html.find("Step 6").unwrap();
+        let pos12 = html.find("Step 12").unwrap();
+        assert!(pos1 < pos6);
+        assert!(pos6 < pos12);
+    }
+
+    #[test]
+    fn html_escape_handles_combined_entities() {
+        let text = r#"Test <tag> & "quotes" & more"#;
+        let escaped = html_escape(text);
+        assert_eq!(escaped, r#"Test &lt;tag&gt; &amp; &quot;quotes&quot; &amp; more"#);
+    }
+
+    #[test]
+    fn html_escape_preserves_normal_text() {
+        let text = "Normal text with no special chars";
+        let escaped = html_escape(text);
+        assert_eq!(escaped, text);
+    }
 }

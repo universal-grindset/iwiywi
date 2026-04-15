@@ -54,4 +54,41 @@ mod tests {
         assert_eq!(back[0].step, 7);
         assert_eq!(back[0].source, "Test");
     }
+
+
+    #[test]
+    fn json_serialization_with_special_characters() {
+        let r = ClassifiedReading {
+            step: 5,
+            reason: "Trust & Honesty".to_string(),
+            source: "AA's Way".to_string(),
+            title: "Acceptance <3".to_string(),
+            text: "Let go & let God...".to_string(),
+            url: "https://example.com?q=test&v=1".to_string(),
+        };
+
+        let json = serde_json::to_string(&r).unwrap();
+        let back: ClassifiedReading = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.reason, "Trust & Honesty");
+        assert_eq!(back.source, "AA's Way");
+        assert_eq!(back.url, "https://example.com?q=test&v=1");
+    }
+
+    #[test]
+    fn json_round_trip_empty_fields() {
+        let r = ClassifiedReading {
+            step: 1,
+            reason: String::new(),
+            source: String::new(),
+            title: String::new(),
+            text: String::new(),
+            url: String::new(),
+        };
+
+        let json = serde_json::to_string(&r).unwrap();
+        let back: ClassifiedReading = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.reason, "");
+        assert_eq!(back.source, "");
+        assert_eq!(back.text, "");
+    }
 }
