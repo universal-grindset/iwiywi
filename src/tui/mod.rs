@@ -1,4 +1,5 @@
 pub mod drift;
+pub mod help;
 pub mod menu;
 pub mod palette;
 pub mod pattern;
@@ -41,6 +42,8 @@ pub struct App {
     pub sobriety_days: Option<i64>,
     /// When true, auto-advance is suspended (`space` toggles).
     pub paused: bool,
+    /// When true, the help overlay is showing.
+    pub help_open: bool,
 }
 
 impl App {
@@ -238,6 +241,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         menu_cursor: 0,
         sobriety_days: config::sobriety_days(),
         paused: false,
+        help_open: false,
     };
 
     loop {
@@ -263,11 +267,18 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
             if app.menu_open {
                 menu::render(f, &app.palette, app.menu_cursor, app.current_menu_values());
             }
+            if app.help_open {
+                help::render(f, &app.palette);
+            }
         })?;
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press { continue; }
+                if app.help_open {
+                    app.help_open = false;
+                    continue;
+                }
                 if app.menu_open {
                     match key.code {
                         KeyCode::Char('m') | KeyCode::Esc => { app.menu_open = false; continue; }
@@ -284,6 +295,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') => break,
                     KeyCode::Char('m') => app.menu_open = true,
+                    KeyCode::Char('?') => app.help_open = true,
                     KeyCode::Char('n') => app.next(),
                     KeyCode::Char('p') => app.prev(),
                     KeyCode::Char('r') => app.random(),
@@ -363,6 +375,7 @@ mod tests {
             menu_cursor: 0,
             sobriety_days: None,
             paused: false,
+            help_open: false,
         }
     }
 
