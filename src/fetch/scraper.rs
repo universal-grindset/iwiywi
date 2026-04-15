@@ -6,6 +6,38 @@ use crate::models::RawReading;
 type ParseFn = fn(&str) -> Option<RawReading>;
 type Source = (&'static str, &'static str, ParseFn);
 
+/// Build the Wayback "latest snapshot" URL for the given live URL.
+/// `web.archive.org/web/2/<url>` redirects to the latest snapshot.
+pub fn wayback_url(live: &str) -> String {
+    format!("https://web.archive.org/web/2/{live}")
+}
+
+/// Try the live URL first; on failure or empty body, retry via Wayback.
+/// Returns the HTML body that successfully fetched (may still be empty).
+pub async fn fetch_with_wayback_fallback(
+    client: &reqwest::Client,
+    live_url: &str,
+) -> Option<String> {
+    let try_one = async |url: &str| -> Option<String> {
+        let resp = client
+            .get(url)
+            .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.1)")
+            .send()
+            .await
+            .ok()?;
+        if !resp.status().is_success() {
+            return None;
+        }
+        resp.text().await.ok()
+    };
+    if let Some(body) = try_one(live_url).await {
+        if !body.trim().is_empty() {
+            return Some(body);
+        }
+    }
+    try_one(&wayback_url(live_url)).await
+}
+
 pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
     let sources: Vec<Source> = vec![
         (
@@ -38,23 +70,15 @@ pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
 
     let mut results = Vec::new();
     for (key, url, parse_fn) in &sources {
-        match client
-            .get(*url)
-            .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.1)")
-            .send()
-            .await
-        {
-            Ok(resp) => match resp.text().await {
-                Ok(html) => {
-                    if let Some(reading) = parse_fn(&html) {
-                        results.push(reading);
-                    } else {
-                        eprintln!("warn: no reading found at {key}");
-                    }
+        match fetch_with_wayback_fallback(&client, url).await {
+            Some(html) => {
+                if let Some(reading) = parse_fn(&html) {
+                    results.push(reading);
+                } else {
+                    eprintln!("warn: no reading found at {key} (live + wayback)");
                 }
-                Err(e) => eprintln!("warn: bad body from {key}: {e}"),
-            },
-            Err(e) => eprintln!("warn: fetch failed for {key}: {e}"),
+            }
+            None => eprintln!("warn: fetch failed for {key} (live + wayback)"),
         }
     }
     results
@@ -181,6 +205,13 @@ pub fn parse_aa_big_book(html: &str) -> Option<RawReading> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wayback_url_uses_latest_snapshot() {
+        let url = wayback_url("https://www.aa.org/daily-reflections");
+        assert!(url.starts_with("https://web.archive.org/web/"));
+        assert!(url.ends_with("https://www.aa.org/daily-reflections"));
+    }
 
     #[test]
     fn parse_aa_org_extracts_text() {
