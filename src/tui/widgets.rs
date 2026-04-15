@@ -16,7 +16,7 @@ pub fn render_pulse(frame: &mut Frame, item: Option<&PulseItem>, palette: &Palet
 
     let Some(item) = item else { return; };
 
-    let width = (area.width as f32 * 0.7).min(72.0).max(20.0) as u16;
+    let width = (area.width as f32 * 0.7).clamp(20.0, 72.0) as u16;
     let body_lines_estimate = (item.body.chars().count() as u16 / width.max(1)).saturating_add(1);
     let total_height = 3 + body_lines_estimate;
     let total_height = total_height.min(area.height);

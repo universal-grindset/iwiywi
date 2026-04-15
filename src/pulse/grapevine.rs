@@ -40,6 +40,7 @@ impl Grapevine {
         Grapevine { items }
     }
 
+    #[allow(dead_code)]
     pub fn live_url() -> &'static str { LIVE_URL }
 }
 

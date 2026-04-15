@@ -19,6 +19,7 @@ pub enum Variant {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code, reason = "mode/variant/bg are part of the public Palette surface; not all consumers use them yet")]
 pub struct Palette {
     pub mode: Mode,
     pub variant: Variant,

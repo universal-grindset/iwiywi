@@ -54,6 +54,7 @@ pub fn load_config() -> Result<Config> {
     toml::from_str(&s).context("parsing config.toml")
 }
 
+#[allow(dead_code)]
 pub fn save_config(cfg: &Config) -> Result<()> {
     let dir = config_dir();
     fs::create_dir_all(&dir).context("creating config dir")?;
