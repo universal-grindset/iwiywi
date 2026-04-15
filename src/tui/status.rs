@@ -21,6 +21,9 @@ pub struct StatusLine<'a> {
     pub pulse_progress: Option<f32>, // 0.0..=1.0, None if manual-only
     pub sobriety_days: Option<i64>,
     pub paused: bool,
+    /// When `Some`, this overrides the right-hand sobriety slot with a
+    /// transient message (e.g. "copied", "★ saved").
+    pub toast: Option<&'a str>,
 }
 
 pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
@@ -94,6 +97,7 @@ fn left_text(status: &StatusLine) -> String {
 }
 
 fn right_text(status: &StatusLine) -> String {
+    if let Some(msg) = status.toast { return msg.to_string(); }
     status.sobriety_days.map_or(String::new(), |d| {
         if d < 0 { String::new() } else { format!("Day {d}") }
     })
@@ -107,73 +111,66 @@ mod tests {
         PulseMixer::from_sources(&[], None, crate::pulse::Order::Random)
     }
 
+    fn stub<'a>(mixer: &'a PulseMixer) -> StatusLine<'a> {
+        StatusLine {
+            mixer, focus: Focus::All, focus_step: None,
+            pulse_progress: None, sobriety_days: None, paused: false, toast: None,
+        }
+    }
+
     #[test]
     fn left_text_no_focus() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: None, paused: false,
-        };
-        assert_eq!(left_text(&s), "1 / 1");
+        assert_eq!(left_text(&stub(&mixer)), "1 / 1");
     }
 
     #[test]
     fn left_text_step_focus() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: Some(3),
-            pulse_progress: None, sobriety_days: None, paused: false,
-        };
+        let mut s = stub(&mixer); s.focus_step = Some(3);
         assert!(left_text(&s).contains("Step 3"));
     }
 
     #[test]
     fn left_text_source_focus() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::Prayers, focus_step: None,
-            pulse_progress: None, sobriety_days: None, paused: false,
-        };
+        let mut s = stub(&mixer); s.focus = Focus::Prayers;
         assert!(left_text(&s).contains("focus: prayers"));
     }
 
     #[test]
     fn left_text_paused() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: None, paused: true,
-        };
+        let mut s = stub(&mixer); s.paused = true;
         assert!(left_text(&s).ends_with("paused"));
     }
 
     #[test]
     fn right_text_sobriety_day() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: Some(1123), paused: false,
-        };
+        let mut s = stub(&mixer); s.sobriety_days = Some(1123);
         assert_eq!(right_text(&s), "Day 1123");
     }
 
     #[test]
     fn right_text_empty_when_unset() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: None, paused: false,
-        };
-        assert!(right_text(&s).is_empty());
+        assert!(right_text(&stub(&mixer)).is_empty());
     }
 
     #[test]
     fn right_text_empty_when_future_date() {
         let mixer = stub_mixer();
-        let s = StatusLine {
-            mixer: &mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: Some(-5), paused: false,
-        };
+        let mut s = stub(&mixer); s.sobriety_days = Some(-5);
         assert!(right_text(&s).is_empty());
+    }
+
+    #[test]
+    fn right_text_toast_overrides_sobriety() {
+        let mixer = stub_mixer();
+        let mut s = stub(&mixer);
+        s.sobriety_days = Some(100);
+        s.toast = Some("copied");
+        assert_eq!(right_text(&s), "copied");
     }
 }

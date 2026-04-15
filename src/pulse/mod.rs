@@ -3,6 +3,7 @@
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
 pub mod bundled;
+pub mod favorites;
 pub mod grapevine;
 pub mod historical;
 pub mod today;
@@ -29,6 +30,7 @@ pub enum PulseKind {
     Concept,
     Slogan,
     Grapevine,
+    Favorite,
 }
 
 impl PulseKind {
@@ -44,6 +46,7 @@ impl PulseKind {
             PulseKind::Concept           => "Concept",
             PulseKind::Slogan            => "Slogan",
             PulseKind::Grapevine         => "Grapevine",
+            PulseKind::Favorite          => "Favorite",
         }
     }
 }
@@ -110,13 +113,14 @@ pub enum Focus {
     Traditions,
     Concepts,
     Slogans,
+    Favorites,
 }
 
 impl Focus {
-    pub const ALL_VARIANTS: [Focus; 11] = [
+    pub const ALL_VARIANTS: [Focus; 12] = [
         Focus::All, Focus::Today, Focus::History, Focus::BigBook, Focus::Prayers,
         Focus::Steps, Focus::Principles, Focus::Grapevine, Focus::Traditions,
-        Focus::Concepts, Focus::Slogans,
+        Focus::Concepts, Focus::Slogans, Focus::Favorites,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -132,6 +136,7 @@ impl Focus {
             Focus::Traditions => "traditions",
             Focus::Concepts   => "concepts",
             Focus::Slogans    => "slogans",
+            Focus::Favorites  => "favorites",
         }
     }
 
@@ -147,6 +152,7 @@ impl Focus {
             Some("traditions") => Focus::Traditions,
             Some("concepts")   => Focus::Concepts,
             Some("slogans")    => Focus::Slogans,
+            Some("favorites")  => Focus::Favorites,
             _ => Focus::All,
         }
     }
@@ -164,6 +170,7 @@ impl Focus {
             Focus::Traditions => source_name == "traditions",
             Focus::Concepts   => source_name == "concepts",
             Focus::Slogans    => source_name == "slogans",
+            Focus::Favorites  => source_name == "favorites",
         }
     }
 }

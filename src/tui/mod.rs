@@ -1,4 +1,6 @@
+pub mod clipboard;
 pub mod drift;
+pub mod export;
 pub mod help;
 pub mod menu;
 pub mod palette;
@@ -44,6 +46,11 @@ pub struct App {
     pub paused: bool,
     /// When true, the help overlay is showing.
     pub help_open: bool,
+    /// Favorited items persisted to `~/.iwiywi/favorites.json`.
+    pub favorites: pulse::favorites::Favorites,
+    /// A transient toast shown for ~1.5s after an action (copy, export,
+    /// favorite toggle). Rendered in the status footer.
+    pub toast: Option<(String, std::time::Instant)>,
 }
 
 impl App {
@@ -96,6 +103,39 @@ impl App {
     fn next_seed(&mut self) -> u32 {
         self.seed_counter = self.seed_counter.wrapping_add(1);
         self.seed_counter
+    }
+
+    pub fn toggle_favorite(&mut self) {
+        let Some(item) = self.mixer.current() else { return; };
+        let item = item.clone();
+        let msg = if self.favorites.toggle(&item) { "★ saved" } else { "★ removed" };
+        self.toast = Some((msg.to_string(), Instant::now()));
+        // The mixer's Favorites source is a separate snapshot of the file,
+        // so refresh it from disk before rebuilding so Focus::Favorites sees
+        // the toggle immediately.
+        if let Some(last) = self.sources.last_mut() {
+            *last = Box::new(pulse::favorites::Favorites::load_from(
+                config::config_dir().join("favorites.json"),
+            ));
+        }
+        self.rebuild_mixer();
+    }
+
+    pub fn copy_current(&mut self) {
+        let Some(item) = self.mixer.current() else { return; };
+        let text = format!("{}\n\n{}\n", item.label, item.body);
+        let ok = clipboard::copy(&text);
+        let msg = if ok { "copied" } else { "no clipboard available" };
+        self.toast = Some((msg.to_string(), Instant::now()));
+    }
+
+    pub fn export_current(&mut self) {
+        let exports_dir = config::config_dir().join("exports");
+        let msg = match export::write_current(&self.mixer, exports_dir) {
+            Some(path) => format!("exported → {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("file")),
+            None => "export failed".to_string(),
+        };
+        self.toast = Some((msg, Instant::now()));
     }
 
     pub fn menu_row_prev(&mut self) {
@@ -183,6 +223,9 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         Box::new(pulse::bundled::Concepts::load()),
         Box::new(pulse::bundled::Slogans::load()),
         Box::new(pulse::grapevine::Grapevine::from_html(grapevine_html.as_deref())),
+        Box::new(pulse::favorites::Favorites::load_from(
+            config::config_dir().join("favorites.json"),
+        )),
     ];
 
     let focus = pulse::focus_from_env();
@@ -242,10 +285,20 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         sobriety_days: config::sobriety_days(),
         paused: false,
         help_open: false,
+        favorites: pulse::favorites::Favorites::load_from(
+            config::config_dir().join("favorites.json"),
+        ),
+        toast: None,
     };
 
     loop {
         let size = terminal.size()?;
+        // Expire the toast after ~1.5s so it doesn't stick around.
+        if let Some((_, t)) = &app.toast {
+            if t.elapsed() > Duration::from_millis(1500) {
+                app.toast = None;
+            }
+        }
         terminal.draw(|f| {
             widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref());
             let progress = if app.paused {
@@ -255,6 +308,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                     (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
                 })
             };
+            let toast = app.toast.as_ref().map(|(msg, _)| msg.as_str());
             let status_line = status::StatusLine {
                 mixer: &app.mixer,
                 focus: app.focus,
@@ -262,6 +316,7 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                 pulse_progress: progress,
                 sobriety_days: app.sobriety_days,
                 paused: app.paused,
+                toast,
             };
             status::render(f, &app.palette, &status_line);
             if app.menu_open {
@@ -303,6 +358,9 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                         app.paused = !app.paused;
                         if !app.paused { app.last_advance = Instant::now(); }
                     }
+                    KeyCode::Char('f') => app.toggle_favorite(),
+                    KeyCode::Char('c') => app.copy_current(),
+                    KeyCode::Char('e') => app.export_current(),
                     KeyCode::Char('1') => app.set_step_focus(1),
                     KeyCode::Char('2') => app.set_step_focus(2),
                     KeyCode::Char('3') => app.set_step_focus(3),
@@ -376,6 +434,10 @@ mod tests {
             sobriety_days: None,
             paused: false,
             help_open: false,
+            favorites: pulse::favorites::Favorites::load_from(
+                std::path::PathBuf::from("/tmp/iwiywi-test-favorites.json"),
+            ),
+            toast: None,
         }
     }
 
