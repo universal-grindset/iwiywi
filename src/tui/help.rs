@@ -45,6 +45,7 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("1–9 0 - =", "focus Step 1–12 · tap twice: AI meditation"),
         ("*", "clear step focus"),
         ("a", "AI: why this matters (Esc closes)"),
+        ("F", "showcase mode (fullscreen)"),
         ("m", "settings menu"),
         ("f", "favorite / unfavorite"),
         ("c", "copy current item"),

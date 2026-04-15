@@ -19,15 +19,23 @@ pub fn render_pulse(
     pattern: Pattern,
     drift_state: Option<&DriftState>,
     text_size: TextSize,
+    showcase: bool,
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
     let Some(item) = item else { return; };
 
+    // Showcase mode takes over the whole frame: wider text column, larger
+    // clamp ceiling, bold body. The caller still passes a TextSize but we
+    // override both ratio and clamp upper bound.
     let (clamp_lo, clamp_hi) = text_size.width_clamp();
-    let width = (area.width as f32 * text_size.width_ratio())
-        .clamp(clamp_lo, clamp_hi) as u16;
+    let (ratio, clamp_hi) = if showcase {
+        (0.92, (area.width as f32 - 4.0).max(40.0))
+    } else {
+        (text_size.width_ratio(), clamp_hi)
+    };
+    let width = (area.width as f32 * ratio).clamp(clamp_lo, clamp_hi) as u16;
     let w = width.max(1) as usize;
     // Per-line ceiling-divide so we never under-count, count explicit
     // newlines as hard breaks, and add a safety margin for word-wrap slack
@@ -62,9 +70,14 @@ pub fn render_pulse(
         item.kind.display_label().to_string(),
         Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
     ));
+    let body_modifier = if showcase {
+        Modifier::BOLD
+    } else {
+        text_size.body_modifier()
+    };
     let body = Line::from(Span::styled(
         item.body.clone(),
-        Style::default().fg(palette.body).add_modifier(text_size.body_modifier()),
+        Style::default().fg(palette.body).add_modifier(body_modifier),
     ));
 
     Paragraph::new(vec![label, kind, Line::from(""), body])

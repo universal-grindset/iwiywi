@@ -3,6 +3,7 @@
 //! user has set `IWIYWI_SOBER_SINCE`. Between them: a thin progress bar
 //! indicating time until the next auto-advance.
 
+pub use ratatui::buffer::Buffer;
 use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
@@ -12,6 +13,7 @@ use ratatui::{
 };
 
 use crate::pulse::{Focus, PulseMixer};
+use crate::tui::moon;
 use crate::tui::palette::Palette;
 
 pub struct StatusLine<'a> {
@@ -101,6 +103,38 @@ fn right_text(status: &StatusLine) -> String {
     status.sobriety_days.map_or(String::new(), |d| {
         if d < 0 { String::new() } else { format!("Day {d}") }
     })
+}
+
+/// Draw the ambient corner anchor: moon phase + optional `Day N` counter.
+/// Top-right of `area`. Renders only if the viewport is wide enough and if
+/// there's something to show (moon always shows when space permits; the
+/// day counter shows when `sobriety_days` is `Some(positive)`).
+pub fn draw_moon_anchor(
+    buf: &mut Buffer,
+    area: Rect,
+    palette: &Palette,
+    sobriety_days: Option<i64>,
+) {
+    if area.width < 30 || area.height < 3 { return; }
+    let today = chrono::Local::now().date_naive();
+    let idx = moon::phase_index(today);
+    let glyph = moon::phase_glyph(idx);
+    let day_str = sobriety_days
+        .filter(|d| *d >= 0)
+        .map_or(String::new(), |d| format!(" · Day {d}"));
+    let text = format!("{glyph} {}{day_str}", moon::phase_name(idx));
+    // Width must budget for the glyph (often 2 terminal cells for emoji
+    // moon chars). Assume at most 2 extra cells for the glyph vs char count.
+    let text_w = text.chars().count() as u16 + 2;
+    if area.width < text_w + 2 { return; }
+    let x = area.x + area.width.saturating_sub(text_w + 1);
+    let y = area.y;
+    let rect = Rect { x, y, width: text_w, height: 1 };
+    Paragraph::new(Line::from(Span::styled(
+        text,
+        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+    )))
+    .render(rect, buf);
 }
 
 #[cfg(test)]

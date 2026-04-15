@@ -5,6 +5,7 @@
 //! forms return the same RGB values as their Dark forms. BM is not a
 //! daylight aesthetic.
 
+use chrono::Timelike;
 use ratatui::style::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -579,6 +580,61 @@ impl Palette {
     }
 }
 
+impl Palette {
+    /// Scale all three colors toward the background by `factor` in 0..=1.
+    /// Used by the idle screensaver to dim the UI after inactivity.
+    /// `factor=1.0` returns self unchanged; `factor=0.3` produces a subdued
+    /// near-background rendering that's still readable.
+    pub fn dim(&self, factor: f32) -> Palette {
+        Palette {
+            mode: self.mode,
+            variant: self.variant,
+            bg: self.bg,
+            accent: dim_color(self.accent, factor, self.mode),
+            body:   dim_color(self.body,   factor, self.mode),
+            muted:  dim_color(self.muted,  factor, self.mode),
+        }
+    }
+}
+
+fn dim_color(c: Color, factor: f32, mode: Mode) -> Color {
+    let (r, g, b) = match c {
+        Color::Rgb(r, g, b) => (r, g, b),
+        // Non-RGB (Reset / Indexed) — leave untouched. Dim is a purely
+        // visual tweak on the three styled colors.
+        _ => return c,
+    };
+    // Dark mode dims toward black; light mode toward white.
+    let (br, bg, bb) = match mode {
+        Mode::Dark  => (0u8, 0u8, 0u8),
+        Mode::Light => (255u8, 255u8, 255u8),
+    };
+    let blend = |src: u8, dst: u8| -> u8 {
+        let sf = f32::from(src);
+        let df = f32::from(dst);
+        (df + (sf - df) * factor).clamp(0.0, 255.0) as u8
+    };
+    Color::Rgb(blend(r, br), blend(g, bg), blend(b, bb))
+}
+
+/// Return a palette variant chosen by the current hour-of-day. Used when
+/// `IWIYWI_PALETTE=auto` — the palette slowly drifts from warm dawn through
+/// cool midday, sunset, dusk, and deep night. Deterministic per hour.
+pub fn auto_variant(hour: u32) -> Variant {
+    match hour {
+        5..=6   => Variant::Dawn,
+        7..=9   => Variant::Warm,
+        10..=11 => Variant::Default,
+        12..=14 => Variant::Cool,
+        15..=16 => Variant::Sage,
+        17..=18 => Variant::Sunset,
+        19..=20 => Variant::Ember,
+        21..=22 => Variant::Dusk,
+        23 | 0 | 1 => Variant::Indigo,
+        _ => Variant::Funeral, // 2, 3, 4 — deep night BM
+    }
+}
+
 /// Detect light vs dark from `IWIYWI_THEME` (light|dark|auto) with COLORFGBG fallback.
 pub fn detect_mode() -> Mode {
     match std::env::var("IWIYWI_THEME").ok().as_deref() {
@@ -600,8 +656,19 @@ fn auto_mode() -> Mode {
 
 pub fn from_env() -> Palette {
     let mode = detect_mode();
-    let variant = Variant::parse(std::env::var("IWIYWI_PALETTE").ok().as_deref());
+    let raw = std::env::var("IWIYWI_PALETTE").ok();
+    let variant = match raw.as_deref() {
+        Some("auto") => auto_variant(chrono::Local::now().hour()),
+        other => Variant::parse(other),
+    };
     Palette::build(mode, variant)
+}
+
+/// True when the user asked for the time-of-day auto palette. Lets the
+/// main loop re-derive the palette periodically so it drifts through the
+/// day without a restart.
+pub fn auto_requested() -> bool {
+    matches!(std::env::var("IWIYWI_PALETTE").ok().as_deref(), Some("auto"))
 }
 
 #[cfg(test)]

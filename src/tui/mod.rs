@@ -1,9 +1,11 @@
 pub mod clipboard;
+pub mod clock;
 pub mod drift;
 pub mod export;
 pub mod help;
 pub mod journal;
 pub mod menu;
+pub mod moon;
 pub mod overlay;
 pub mod palette;
 pub mod pattern;
@@ -117,7 +119,19 @@ pub struct App {
     /// `(step, pressed_at)` — second tap within `STEP_DOUBLE_TAP_MS` triggers
     /// the AI meditation overlay instead of a second focus set.
     pub last_step_press: Option<(u8, Instant)>,
+    /// Fullscreen quote-wall mode. Suppresses drift, status bar, clock,
+    /// moon/sober anchor. Body fills the frame. Toggled with `F`.
+    pub showcase: bool,
+    /// Time of the last key press — drives the idle dim-down and also
+    /// lets the time-of-day palette auto-drift respond to user activity.
+    pub last_input: Instant,
+    /// True when the user set `IWIYWI_PALETTE=auto`; re-derives the
+    /// variant from the current hour every ~60s.
+    pub palette_auto: bool,
 }
+
+const IDLE_DIM_AFTER: Duration = Duration::from_secs(300);
+const IDLE_DIM_FACTOR: f32 = 0.32;
 
 impl App {
     pub fn rebuild_mixer(&mut self) {
@@ -561,6 +575,9 @@ pub fn run(
             .ok(),
         ai_config: cfg.clone(),
         last_step_press: None,
+        showcase: false,
+        last_input: Instant::now(),
+        palette_auto: palette::auto_requested(),
     };
 
     loop {
@@ -571,34 +588,66 @@ pub fn run(
                 app.toast = None;
             }
         }
+        // Compute the effective palette each frame: idle dim kicks in after
+        // IDLE_DIM_AFTER with no keypress. Palette-auto re-derives the
+        // variant from the current hour so the display drifts through the
+        // day. Both layer over app.palette without mutating it.
+        let idle = app.last_input.elapsed() > IDLE_DIM_AFTER;
+        let mut eff_palette = if app.palette_auto {
+            palette::Palette::build(
+                app.palette.mode,
+                palette::auto_variant(chrono::Timelike::hour(&chrono::Local::now())),
+            )
+        } else {
+            app.palette
+        };
+        if idle { eff_palette = eff_palette.dim(IDLE_DIM_FACTOR); }
+
         terminal.draw(|f| {
-            widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref(), app.text_size);
-            let progress = if app.paused {
-                None
-            } else {
-                app.pulse_secs.map(|interval| {
-                    (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
-                })
-            };
-            let toast = app.toast.as_ref().map(|(msg, _, _)| msg.as_str());
-            let status_line = status::StatusLine {
-                mixer: &app.mixer,
-                focus: app.focus,
-                focus_step: app.focus_step,
-                pulse_progress: progress,
-                sobriety_days: app.sobriety_days,
-                paused: app.paused,
-                toast,
-            };
-            status::render(f, &app.palette, &status_line);
-            if app.menu_open {
-                menu::render(f, &app.palette, app.menu_cursor, app.current_menu_values());
-            }
-            if app.help_open {
-                help::render(f, &app.palette);
+            let eff_pattern = if app.showcase { pattern::Pattern::None } else { app.pattern };
+            let eff_drift = if app.showcase { None } else { app.drift.as_ref() };
+            widgets::render_pulse(
+                f, app.mixer.current(), &eff_palette,
+                eff_pattern, eff_drift, app.text_size, app.showcase,
+            );
+            // Showcase mode: suppress status line, clock, moon anchor, and
+            // the menu/help overlays. Keep the AI overlay so `a` still works.
+            if !app.showcase {
+                let frame_area = f.area();
+                {
+                    let buf = f.buffer_mut();
+                    clock::draw(buf, frame_area, &eff_palette);
+                    status::draw_moon_anchor(
+                        buf, frame_area, &eff_palette, app.sobriety_days,
+                    );
+                }
+                let progress = if app.paused {
+                    None
+                } else {
+                    app.pulse_secs.map(|interval| {
+                        (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
+                    })
+                };
+                let toast = app.toast.as_ref().map(|(msg, _, _)| msg.as_str());
+                let status_line = status::StatusLine {
+                    mixer: &app.mixer,
+                    focus: app.focus,
+                    focus_step: app.focus_step,
+                    pulse_progress: progress,
+                    sobriety_days: app.sobriety_days,
+                    paused: app.paused,
+                    toast,
+                };
+                status::render(f, &eff_palette, &status_line);
+                if app.menu_open {
+                    menu::render(f, &eff_palette, app.menu_cursor, app.current_menu_values());
+                }
+                if app.help_open {
+                    help::render(f, &eff_palette);
+                }
             }
             if let Some(ov) = app.ai_overlay.as_mut() {
-                overlay::render(f, &app.palette, ov);
+                overlay::render(f, &eff_palette, ov);
             }
         })?;
 
@@ -608,6 +657,9 @@ pub fn run(
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press { continue; }
+                // Any keypress wakes the UI from idle dim-down and resets
+                // the idle timer.
+                app.last_input = Instant::now();
                 if app.help_open {
                     app.help_open = false;
                     continue;
@@ -652,6 +704,7 @@ pub fn run(
                         if !app.paused { app.last_advance = Instant::now(); }
                     }
                     KeyCode::Char('a') => app.explain_current(),
+                    KeyCode::Char('F') => app.showcase = !app.showcase,
                     KeyCode::Char('f') => app.toggle_favorite(),
                     KeyCode::Char('c') => app.copy_current(),
                     KeyCode::Char('e') => app.export_current(),
@@ -756,6 +809,9 @@ mod tests {
             ai_client: None,
             ai_config: Config::default(),
             last_step_press: None,
+            showcase: false,
+            last_input: Instant::now(),
+            palette_auto: false,
         }
     }
 
