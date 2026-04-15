@@ -12,6 +12,28 @@ pub fn wayback_url(live: &str) -> String {
     format!("https://web.archive.org/web/2/{live}")
 }
 
+/// Trim trailing/embedded boilerplate that often comes with scraped content
+/// (copyright lines, "all rights reserved" notices, etc.).
+fn trim_boilerplate(text: &str) -> String {
+    let markers = [
+        "All rights reserved",
+        "registered trademarks",
+        "Copyright (c)",
+        "© ",
+        "is the official Website",
+        "Alcoholics Anonymous and the",
+    ];
+    let mut out = text.to_string();
+    for m in markers {
+        if let Some(idx) = out.find(m) {
+            // Cut at the start of the line containing the marker.
+            let line_start = out[..idx].rfind('\n').map(|p| p + 1).unwrap_or(0);
+            out.truncate(line_start);
+        }
+    }
+    out.trim().to_string()
+}
+
 /// Try the live URL first; on failure or empty body, retry via Wayback.
 /// Returns the HTML body that successfully fetched (may still be empty).
 pub async fn fetch_with_wayback_fallback(
@@ -122,18 +144,16 @@ pub fn parse_aa_org(html: &str) -> Option<RawReading> {
     let sel = Selector::parse(".field--name-body p").ok()?;
     let text: String = document
         .select(&sel)
-        .map(|e| e.text().collect::<String>())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_string();
+        .next()
+        .map(|e| e.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
     if text.is_empty() {
         return None;
     }
     Some(RawReading {
         source: "AA.org".to_string(),
         title: "Daily Reflections".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://www.aa.org/daily-reflections".to_string(),
     })
 }
@@ -156,7 +176,7 @@ pub fn parse_hazeldon(html: &str) -> Option<RawReading> {
     Some(RawReading {
         source: "Hazeldon Betty Ford".to_string(),
         title: "Thought for the Day".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://www.hazeldenbettyford.org/thought-for-the-day".to_string(),
     })
 }
@@ -168,18 +188,16 @@ pub fn parse_happy_hour(html: &str) -> Option<RawReading> {
     let sel = Selector::parse(".entry-content p").ok()?;
     let text: String = document
         .select(&sel)
-        .map(|e| e.text().collect::<String>())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_string();
+        .next()
+        .map(|e| e.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
     if text.is_empty() {
         return None;
     }
     Some(RawReading {
         source: "AA Happy Hour".to_string(),
         title: "AA Daily Readings".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://www.aahappyhour.com/aa-daily-readings/".to_string(),
     })
 }
@@ -200,7 +218,7 @@ pub fn parse_silkworth(html: &str) -> Option<RawReading> {
     Some(RawReading {
         source: "Silkworth.net".to_string(),
         title: "Daily Reading".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://silkworth.net".to_string(),
     })
 }
@@ -213,7 +231,7 @@ pub fn parse_aa_online_meeting(html: &str) -> Option<RawReading> {
     Some(RawReading {
         source: "AA Online Meeting".to_string(),
         title: "Daily Reading".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://www.aaonlinemeeting.net".to_string(),
     })
 }
@@ -226,7 +244,7 @@ pub fn parse_aa_big_book(html: &str) -> Option<RawReading> {
     Some(RawReading {
         source: "AA Big Book".to_string(),
         title: "Daily Reading".to_string(),
-        text,
+        text: trim_boilerplate(&text),
         url: "https://www.aabigbook.com".to_string(),
     })
 }
@@ -318,5 +336,23 @@ mod tests {
         assert!(result.unwrap().text.contains("Big Book"));
     }
 
+    #[test]
+    fn trim_boilerplate_removes_trademark_footer() {
+        let raw = "The actual reading text here.\nAll rights reserved. © 2026 AA World Services.";
+        let cleaned = trim_boilerplate(raw);
+        assert_eq!(cleaned, "The actual reading text here.");
+    }
+
+    #[test]
+    fn trim_boilerplate_handles_no_markers() {
+        let raw = "Just a normal reading with no boilerplate.";
+        assert_eq!(trim_boilerplate(raw), raw);
+    }
+
+    #[test]
+    fn trim_boilerplate_cuts_at_official_website_line() {
+        let raw = "Reading body.\nThis is the official Website of the General Service Office.";
+        assert_eq!(trim_boilerplate(raw), "Reading body.");
+    }
 
 }
