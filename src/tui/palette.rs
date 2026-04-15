@@ -1,5 +1,9 @@
-//! Palette: a 19-variant color scheme system. Each palette has a light and a
+//! Palette: a 39-variant color scheme system. Each palette has a light and a
 //! dark form; `Mode` decides which form is used at runtime.
+//!
+//! The 20 "black metal" variants are intentionally dark-only — their Light
+//! forms return the same RGB values as their Dark forms. BM is not a
+//! daylight aesthetic.
 
 use ratatui::style::Color;
 
@@ -29,6 +33,27 @@ pub enum Variant {
     Copper,
     Indigo,
     Nord,
+    // 20 black-metal variants. Dark-only; Light mode returns the same RGB.
+    Frostbitten,
+    CorpsePaint,
+    CrimsonAltar,
+    PaleRider,
+    Funeral,
+    Moonspell,
+    Ashen,
+    Pestilence,
+    Obsidian,
+    Winterfell,
+    Raven,
+    Bloodmoon,
+    Tundra,
+    Necrotic,
+    Cascadian,
+    IronOath,
+    Hellfire,
+    Sepulchral,
+    Wraith,
+    Abyssal,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -43,12 +68,20 @@ pub struct Palette {
 }
 
 impl Variant {
-    pub const ALL: [Variant; 19] = [
+    pub const ALL: [Variant; 39] = [
         Variant::Default, Variant::Warm, Variant::Cool, Variant::Mono,
         Variant::Sunset, Variant::Sage, Variant::Dawn, Variant::Dusk,
         Variant::Ember, Variant::Ocean, Variant::Rose, Variant::Forest,
         Variant::Amber, Variant::Slate, Variant::Mint, Variant::Lavender,
         Variant::Copper, Variant::Indigo, Variant::Nord,
+        // --- black metal ---
+        Variant::Frostbitten, Variant::CorpsePaint, Variant::CrimsonAltar,
+        Variant::PaleRider, Variant::Funeral, Variant::Moonspell,
+        Variant::Ashen, Variant::Pestilence, Variant::Obsidian,
+        Variant::Winterfell, Variant::Raven, Variant::Bloodmoon,
+        Variant::Tundra, Variant::Necrotic, Variant::Cascadian,
+        Variant::IronOath, Variant::Hellfire, Variant::Sepulchral,
+        Variant::Wraith, Variant::Abyssal,
     ];
 
     pub fn parse(raw: Option<&str>) -> Variant {
@@ -68,9 +101,29 @@ impl Variant {
             Some("slate")    => Variant::Slate,
             Some("mint")     => Variant::Mint,
             Some("lavender") => Variant::Lavender,
-            Some("copper")   => Variant::Copper,
-            Some("indigo")   => Variant::Indigo,
-            Some("nord")     => Variant::Nord,
+            Some("copper")        => Variant::Copper,
+            Some("indigo")        => Variant::Indigo,
+            Some("nord")          => Variant::Nord,
+            Some("frostbitten")   => Variant::Frostbitten,
+            Some("corpse_paint")  => Variant::CorpsePaint,
+            Some("crimson_altar") => Variant::CrimsonAltar,
+            Some("pale_rider")    => Variant::PaleRider,
+            Some("funeral")       => Variant::Funeral,
+            Some("moonspell")     => Variant::Moonspell,
+            Some("ashen")         => Variant::Ashen,
+            Some("pestilence")    => Variant::Pestilence,
+            Some("obsidian")      => Variant::Obsidian,
+            Some("winterfell")    => Variant::Winterfell,
+            Some("raven")         => Variant::Raven,
+            Some("bloodmoon")     => Variant::Bloodmoon,
+            Some("tundra")        => Variant::Tundra,
+            Some("necrotic")      => Variant::Necrotic,
+            Some("cascadian")     => Variant::Cascadian,
+            Some("iron_oath")     => Variant::IronOath,
+            Some("hellfire")      => Variant::Hellfire,
+            Some("sepulchral")    => Variant::Sepulchral,
+            Some("wraith")        => Variant::Wraith,
+            Some("abyssal")       => Variant::Abyssal,
             _ => Variant::Default,
         }
     }
@@ -93,9 +146,29 @@ impl Variant {
             Variant::Slate    => "slate",
             Variant::Mint     => "mint",
             Variant::Lavender => "lavender",
-            Variant::Copper   => "copper",
-            Variant::Indigo   => "indigo",
-            Variant::Nord     => "nord",
+            Variant::Copper       => "copper",
+            Variant::Indigo       => "indigo",
+            Variant::Nord         => "nord",
+            Variant::Frostbitten  => "frostbitten",
+            Variant::CorpsePaint  => "corpse_paint",
+            Variant::CrimsonAltar => "crimson_altar",
+            Variant::PaleRider    => "pale_rider",
+            Variant::Funeral      => "funeral",
+            Variant::Moonspell    => "moonspell",
+            Variant::Ashen        => "ashen",
+            Variant::Pestilence   => "pestilence",
+            Variant::Obsidian     => "obsidian",
+            Variant::Winterfell   => "winterfell",
+            Variant::Raven        => "raven",
+            Variant::Bloodmoon    => "bloodmoon",
+            Variant::Tundra       => "tundra",
+            Variant::Necrotic     => "necrotic",
+            Variant::Cascadian    => "cascadian",
+            Variant::IronOath     => "iron_oath",
+            Variant::Hellfire     => "hellfire",
+            Variant::Sepulchral   => "sepulchral",
+            Variant::Wraith       => "wraith",
+            Variant::Abyssal      => "abyssal",
         }
     }
 }
@@ -355,6 +428,152 @@ impl Palette {
                 Color::Rgb(0x2E, 0x34, 0x40),
                 Color::Rgb(0x81, 0xA1, 0xC1),
             ),
+
+            // --- Black metal: 20 dark-only variants. Light mode returns the
+            // same values as Dark. Each accent is distinct from every other
+            // accent in the palette registry; body and muted shift to give
+            // each theme a different mood (icy / bloodied / sickly / etc).
+
+            // Frostbitten — Norwegian icy pale blue on void.
+            (_, Variant::Frostbitten) => (
+                Color::Reset,
+                Color::Rgb(0xB8, 0xD4, 0xE8),
+                Color::Rgb(0xC0, 0xD0, 0xDC),
+                Color::Rgb(0x5A, 0x68, 0x78),
+            ),
+            // Corpse Paint — stark white accent on charcoal body.
+            (_, Variant::CorpsePaint) => (
+                Color::Reset,
+                Color::Rgb(0xF5, 0xF5, 0xF5),
+                Color::Rgb(0xE0, 0xE0, 0xE0),
+                Color::Rgb(0x4A, 0x4A, 0x4A),
+            ),
+            // Crimson Altar — dried-blood accent.
+            (_, Variant::CrimsonAltar) => (
+                Color::Reset,
+                Color::Rgb(0x8B, 0x00, 0x00),
+                Color::Rgb(0xB8, 0xA0, 0xA0),
+                Color::Rgb(0x5C, 0x33, 0x33),
+            ),
+            // Pale Rider — bone-gold ghost white.
+            (_, Variant::PaleRider) => (
+                Color::Reset,
+                Color::Rgb(0xC9, 0xBD, 0xA8),
+                Color::Rgb(0xBA, 0xB0, 0xA0),
+                Color::Rgb(0x6B, 0x5D, 0x4A),
+            ),
+            // Funeral — dead-grey stone.
+            (_, Variant::Funeral) => (
+                Color::Reset,
+                Color::Rgb(0x6B, 0x70, 0x78),
+                Color::Rgb(0xA0, 0xA5, 0xAC),
+                Color::Rgb(0x3F, 0x43, 0x49),
+            ),
+            // Moonspell — silver on midnight.
+            (_, Variant::Moonspell) => (
+                Color::Reset,
+                Color::Rgb(0xC0, 0xC0, 0xC0),
+                Color::Rgb(0xB0, 0xB8, 0xC4),
+                Color::Rgb(0x4A, 0x50, 0x60),
+            ),
+            // Ashen — ember orange through the ashes.
+            (_, Variant::Ashen) => (
+                Color::Reset,
+                Color::Rgb(0xCC, 0x55, 0x00),
+                Color::Rgb(0xC4, 0xB8, 0xA8),
+                Color::Rgb(0x5A, 0x4A, 0x3A),
+            ),
+            // Pestilence — sickly decay yellow-green.
+            (_, Variant::Pestilence) => (
+                Color::Reset,
+                Color::Rgb(0x9B, 0x9B, 0x2A),
+                Color::Rgb(0x9F, 0xA0, 0x80),
+                Color::Rgb(0x50, 0x54, 0x3A),
+            ),
+            // Obsidian — royal purple on jet.
+            (_, Variant::Obsidian) => (
+                Color::Reset,
+                Color::Rgb(0x6A, 0x1B, 0x9A),
+                Color::Rgb(0xBC, 0xA8, 0xC4),
+                Color::Rgb(0x4A, 0x38, 0x58),
+            ),
+            // Winterfell — ice blue on slate.
+            (_, Variant::Winterfell) => (
+                Color::Reset,
+                Color::Rgb(0x7F, 0xB3, 0xD5),
+                Color::Rgb(0xB0, 0xC4, 0xD4),
+                Color::Rgb(0x45, 0x58, 0x68),
+            ),
+            // Raven — vivid crimson on shadow.
+            (_, Variant::Raven) => (
+                Color::Reset,
+                Color::Rgb(0xDC, 0x14, 0x3C),
+                Color::Rgb(0xB8, 0xB8, 0xB8),
+                Color::Rgb(0x5C, 0x3F, 0x3F),
+            ),
+            // Bloodmoon — rust red on deep indigo.
+            (_, Variant::Bloodmoon) => (
+                Color::Reset,
+                Color::Rgb(0xA0, 0x33, 0x2E),
+                Color::Rgb(0xB8, 0x9A, 0x8C),
+                Color::Rgb(0x5A, 0x3F, 0x36),
+            ),
+            // Tundra — pale cyan on frost grey.
+            (_, Variant::Tundra) => (
+                Color::Reset,
+                Color::Rgb(0xA8, 0xC5, 0xD0),
+                Color::Rgb(0xBC, 0xC8, 0xD4),
+                Color::Rgb(0x4E, 0x5A, 0x66),
+            ),
+            // Necrotic — bruised purple.
+            (_, Variant::Necrotic) => (
+                Color::Reset,
+                Color::Rgb(0x5D, 0x4E, 0x8C),
+                Color::Rgb(0xA8, 0xA5, 0xB4),
+                Color::Rgb(0x4A, 0x3F, 0x5A),
+            ),
+            // Cascadian — moss green, Pacific Northwest atmospheric BM.
+            (_, Variant::Cascadian) => (
+                Color::Reset,
+                Color::Rgb(0x4A, 0x6B, 0x3E),
+                Color::Rgb(0xA8, 0xB5, 0xA0),
+                Color::Rgb(0x3F, 0x4E, 0x38),
+            ),
+            // Iron Oath — muted steel.
+            (_, Variant::IronOath) => (
+                Color::Reset,
+                Color::Rgb(0x90, 0x90, 0x90),
+                Color::Rgb(0xB0, 0xB0, 0xB0),
+                Color::Rgb(0x45, 0x45, 0x45),
+            ),
+            // Hellfire — burnt orange-red.
+            (_, Variant::Hellfire) => (
+                Color::Reset,
+                Color::Rgb(0xD9, 0x44, 0x1C),
+                Color::Rgb(0xC4, 0xA8, 0x98),
+                Color::Rgb(0x5E, 0x3A, 0x2A),
+            ),
+            // Sepulchral — crypt bone white.
+            (_, Variant::Sepulchral) => (
+                Color::Reset,
+                Color::Rgb(0xD4, 0xD0, 0xC8),
+                Color::Rgb(0xBE, 0xB8, 0xB0),
+                Color::Rgb(0x55, 0x50, 0x4A),
+            ),
+            // Wraith — faded teal, dissolving.
+            (_, Variant::Wraith) => (
+                Color::Reset,
+                Color::Rgb(0x4A, 0x7A, 0x75),
+                Color::Rgb(0xA5, 0xBE, 0xBC),
+                Color::Rgb(0x3E, 0x5A, 0x58),
+            ),
+            // Abyssal — deep cyan from the void.
+            (_, Variant::Abyssal) => (
+                Color::Reset,
+                Color::Rgb(0x00, 0xAC, 0xC1),
+                Color::Rgb(0x9E, 0xC4, 0xD0),
+                Color::Rgb(0x2F, 0x4A, 0x54),
+            ),
         };
         Palette { mode, variant, bg, accent, body, muted }
     }
@@ -408,7 +627,7 @@ mod tests {
     #[test]
     fn all_variants_covers_enum() {
         // Guard against adding a variant and forgetting to append to ALL.
-        assert_eq!(Variant::ALL.len(), 19);
+        assert_eq!(Variant::ALL.len(), 39);
     }
 
     #[test]
@@ -468,8 +687,8 @@ mod tests {
     fn every_label_is_lowercase_ascii() {
         for v in Variant::ALL {
             let l = v.label();
-            assert!(l.chars().all(|c| c.is_ascii_lowercase()),
-                "label {l} contains non-lowercase-ascii");
+            assert!(l.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+                "label {l} must be lowercase ascii + underscores");
             assert!(!l.is_empty());
         }
     }
