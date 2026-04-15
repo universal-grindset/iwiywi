@@ -38,7 +38,7 @@ pub async fn fetch_with_wayback_fallback(
     try_one(&wayback_url(live_url)).await
 }
 
-pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
+pub async fn scrape_all(client: &Client, config: &crate::config::Config) -> Vec<RawReading> {
     let sources: Vec<Source> = vec![
         (
             "aa_org",
@@ -81,6 +81,37 @@ pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
             None => eprintln!("warn: fetch failed for {key} (live + wayback)"),
         }
     }
+
+    // AI-extracted sources: dead-DNS but Wayback has snapshots. Send the
+    // archived HTML to the AI gateway and ask it to extract the reading.
+    let ai_sources: &[(&str, &str, &str, &str)] = &[
+        ("recovering_courage", "https://www.recoveringcourage.com", "Recovering Courage", "Daily Reading"),
+        ("odat", "https://odat.us", "One Day At A Time", "Daily Meditation"),
+        ("joe_and_charlie", "https://joeancharlie.com", "Joe and Charlie", "A Program for You"),
+    ];
+    for (key, live_url, source_label, title_label) in ai_sources {
+        let wayback = wayback_url(live_url);
+        let resp = match client
+            .get(&wayback)
+            .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.1)")
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => r.text().await.ok(),
+            _ => None,
+        };
+        let html = match resp {
+            Some(h) if !h.trim().is_empty() => h,
+            _ => { eprintln!("warn: wayback empty for {key}"); continue; }
+        };
+        match crate::fetch::ai_extract::extract_reading(
+            client, config, &html, source_label, title_label, live_url,
+        ).await {
+            Ok(r) => results.push(r),
+            Err(e) => eprintln!("warn: AI extract failed for {key}: {e}"),
+        }
+    }
+
     results
 }
 

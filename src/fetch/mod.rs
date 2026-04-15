@@ -1,3 +1,4 @@
+pub mod ai_extract;
 pub mod classify;
 pub mod gist;
 pub mod markdown;
@@ -16,7 +17,7 @@ pub async fn run(config: &Config) -> Result<()> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()?;
-    let raw_readings = scraper::scrape_all(&client).await;
+    let raw_readings = scraper::scrape_all(&client, config).await;
     println!("Got {} raw readings", raw_readings.len());
 
     if raw_readings.is_empty() {
