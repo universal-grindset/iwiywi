@@ -171,6 +171,29 @@ impl PulseSource for Concepts {
     fn items(&self) -> &[PulseItem] { &self.items }
 }
 
+const SLOGANS_JSON: &str = include_str!("data/slogans.json");
+
+pub struct Slogans { items: Vec<PulseItem> }
+
+impl Slogans {
+    pub fn load() -> Self {
+        let entries: Vec<String> =
+            serde_json::from_str(SLOGANS_JSON).expect("slogans.json malformed");
+        let items = entries.into_iter().map(|s| PulseItem {
+            kind: PulseKind::Slogan,
+            step: None,
+            label: "Slogan".to_string(),
+            body: s,
+        }).collect();
+        Slogans { items }
+    }
+}
+
+impl PulseSource for Slogans {
+    fn name(&self) -> &str { "slogans" }
+    fn items(&self) -> &[PulseItem] { &self.items }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,5 +311,28 @@ mod tests {
         assert_eq!(PulseKind::Concept.display_label(), "Concept");
         assert_eq!(PulseKind::Slogan.display_label(), "Slogan");
         assert_eq!(PulseKind::Grapevine.display_label(), "Grapevine");
+    }
+
+    #[test]
+    fn slogans_load_yields_thirty() {
+        let s = Slogans::load();
+        assert_eq!(s.items().len(), 30);
+        assert_eq!(s.name(), "slogans");
+    }
+
+    #[test]
+    fn slogans_all_slogan_kind() {
+        let s = Slogans::load();
+        for item in s.items() {
+            assert_eq!(item.kind, PulseKind::Slogan);
+            assert!(item.step.is_none());
+            assert_eq!(item.label, "Slogan");
+        }
+    }
+
+    #[test]
+    fn halt_slogan_present() {
+        let s = Slogans::load();
+        assert!(s.items().iter().any(|i| i.body.starts_with("HALT")));
     }
 }
