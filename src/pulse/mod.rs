@@ -3,6 +3,7 @@
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
 pub mod bundled;
+pub mod historical;
 pub mod today;
 
 use serde::{Deserialize, Serialize};
