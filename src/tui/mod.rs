@@ -134,8 +134,8 @@ pub struct App {
     /// on a wall-clock cadence independent of event rate — otherwise
     /// held-key input starves the animation and particles stutter.
     pub last_drift_tick: Instant,
-    /// Last frame draw time. Used to cap redraws at 30 fps so bursts of
-    /// events don't trigger hundreds of redraws per second.
+    /// Last frame draw time. Kept for debugging and future use.
+    #[allow(dead_code, reason = "kept for future rate-limiting hooks")]
     pub last_draw: Instant,
 }
 
@@ -713,11 +713,7 @@ pub fn run(
         };
         if idle { eff_palette = eff_palette.dim(IDLE_DIM_FACTOR); }
 
-        // Cap draw rate at FRAME_MS so event storms (held-key input drain)
-        // don't cause hundreds of redraws per second.
-        let should_draw = app.last_draw.elapsed() >= Duration::from_millis(FRAME_MS);
-        if should_draw {
-            app.last_draw = Instant::now();
+        app.last_draw = Instant::now();
         terminal.draw(|f| {
             let eff_pattern = if app.showcase { pattern::Pattern::None } else { app.pattern };
             let eff_drift = if app.showcase { None } else { app.drift.as_ref() };
@@ -764,7 +760,6 @@ pub fn run(
                 overlay::render(f, &eff_palette, ov);
             }
         })?;
-        } // end if should_draw
 
         // Apply any completed AI call to the open overlay.
         app.poll_ai();
