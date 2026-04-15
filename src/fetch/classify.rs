@@ -54,9 +54,6 @@ pub async fn classify(
     config: &Config,
     reading: RawReading,
 ) -> Result<ClassifiedReading> {
-    let token =
-        std::env::var("VERCEL_AI_GATEWAY_TOKEN").context("VERCEL_AI_GATEWAY_TOKEN not set")?;
-
     let request = ChatRequest {
         model: &config.ai.model,
         messages: vec![
@@ -74,14 +71,24 @@ pub async fn classify(
         },
     };
 
-    let url = format!("{}/chat/completions", config.ai.gateway_url);
-    let resp = client
-        .post(&url)
-        .bearer_auth(&token)
-        .json(&request)
-        .send()
-        .await
-        .context("calling Vercel AI Gateway")?;
+    let url = match &config.ai.api_version {
+        Some(v) => format!("{}/chat/completions?api-version={v}", config.ai.gateway_url),
+        None => format!("{}/chat/completions", config.ai.gateway_url),
+    };
+    let req = client.post(&url).json(&request);
+    let req = match &config.ai.api_version {
+        // Azure OpenAI: api-key header.
+        Some(_) => req.header(
+            "api-key",
+            std::env::var("AZURE_OPENAI_API_KEY").context("AZURE_OPENAI_API_KEY not set")?,
+        ),
+        // OpenAI / Vercel AI Gateway: bearer auth.
+        None => req.bearer_auth(
+            std::env::var("VERCEL_AI_GATEWAY_TOKEN")
+                .context("VERCEL_AI_GATEWAY_TOKEN not set")?,
+        ),
+    };
+    let resp = req.send().await.context("calling AI gateway")?;
 
     let chat: ChatResponse = resp.json().await.context("parsing AI response")?;
     let content = &chat.choices[0].message.content;
@@ -132,6 +139,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "anthropic/claude-haiku-4-5".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -167,6 +175,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -199,6 +208,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -229,6 +239,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -262,6 +273,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -285,6 +297,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: "https://example.com".to_string(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -316,6 +329,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };
@@ -351,6 +365,7 @@ mod tests {
             ai: crate::config::AiConfig {
                 model: "test".to_string(),
                 gateway_url: server.url(),
+                api_version: None,
             },
             mobile: crate::config::MobileConfig::default(),
         };

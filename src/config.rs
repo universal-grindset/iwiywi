@@ -14,6 +14,11 @@ pub struct Config {
 pub struct AiConfig {
     pub model: String,
     pub gateway_url: String,
+    /// When set, request goes to Azure OpenAI: `api-key` header instead of
+    /// `Authorization: Bearer`, and `?api-version=<this>` is appended to the
+    /// chat-completions URL. Leave unset for OpenAI / Vercel-style gateways.
+    #[serde(default)]
+    pub api_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -27,6 +32,7 @@ impl Default for Config {
             ai: AiConfig {
                 model: "anthropic/claude-haiku-4-5".to_string(),
                 gateway_url: "https://ai-gateway.vercel.sh/v1".to_string(),
+                api_version: None,
             },
             mobile: MobileConfig::default(),
         }
