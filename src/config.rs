@@ -76,18 +76,27 @@ pub fn qr_url(cfg: &Config) -> String {
     }
 }
 
-pub fn idle_secs() -> Option<std::time::Duration> {
-    const DEFAULT: u64 = 60;
-    let raw = std::env::var("IWIYWI_IDLE_SECS").ok();
-    let secs: u64 = match raw.as_deref() {
-        None => DEFAULT,
-        Some(s) => s.parse().unwrap_or(DEFAULT),
+const DEFAULT_IDLE_SECS: u64 = 60;
+
+/// Parse a raw `IWIYWI_IDLE_SECS` value into an idle threshold.
+/// Returns `None` when the screensaver should be disabled ("0"), otherwise a
+/// `Duration`. Unparseable values fall back to the default (60s).
+pub fn parse_idle_secs(raw: Option<&str>) -> Option<std::time::Duration> {
+    let secs: u64 = match raw {
+        None => DEFAULT_IDLE_SECS,
+        Some(s) => s.parse().unwrap_or(DEFAULT_IDLE_SECS),
     };
     if secs == 0 {
         None
     } else {
         Some(std::time::Duration::from_secs(secs))
     }
+}
+
+/// Read `IWIYWI_IDLE_SECS` from the environment and parse it. See
+/// `parse_idle_secs` for the semantics.
+pub fn idle_secs() -> Option<std::time::Duration> {
+    parse_idle_secs(std::env::var("IWIYWI_IDLE_SECS").ok().as_deref())
 }
 
 #[cfg(test)]
@@ -152,29 +161,27 @@ mod tests {
     }
 
     #[test]
-    fn idle_secs_defaults_to_sixty_when_unset() {
-        std::env::remove_var("IWIYWI_IDLE_SECS");
-        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(60)));
+    fn parse_idle_secs_defaults_to_sixty_when_none() {
+        assert_eq!(parse_idle_secs(None), Some(std::time::Duration::from_secs(60)));
     }
 
     #[test]
-    fn idle_secs_returns_none_when_zero() {
-        std::env::set_var("IWIYWI_IDLE_SECS", "0");
-        assert_eq!(idle_secs(), None);
-        std::env::remove_var("IWIYWI_IDLE_SECS");
+    fn parse_idle_secs_returns_none_for_zero() {
+        assert_eq!(parse_idle_secs(Some("0")), None);
     }
 
     #[test]
-    fn idle_secs_parses_positive_value() {
-        std::env::set_var("IWIYWI_IDLE_SECS", "15");
-        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(15)));
-        std::env::remove_var("IWIYWI_IDLE_SECS");
+    fn parse_idle_secs_parses_positive_value() {
+        assert_eq!(parse_idle_secs(Some("15")), Some(std::time::Duration::from_secs(15)));
     }
 
     #[test]
-    fn idle_secs_falls_back_to_default_on_garbage() {
-        std::env::set_var("IWIYWI_IDLE_SECS", "not-a-number");
-        assert_eq!(idle_secs(), Some(std::time::Duration::from_secs(60)));
-        std::env::remove_var("IWIYWI_IDLE_SECS");
+    fn parse_idle_secs_falls_back_on_garbage() {
+        assert_eq!(parse_idle_secs(Some("not-a-number")), Some(std::time::Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn parse_idle_secs_falls_back_on_negative() {
+        assert_eq!(parse_idle_secs(Some("-5")), Some(std::time::Duration::from_secs(60)));
     }
 }
