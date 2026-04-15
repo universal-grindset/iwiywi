@@ -48,11 +48,14 @@ pub async fn run(config: &Config) -> Result<()> {
     }
 
     write_readings(&classified).context("writing readings to disk")?;
-    println!("Saved readings to {}", crate::storage::readings_path().display());
+    println!(
+        "Saved readings to {}",
+        crate::storage::readings_path().display()
+    );
 
     let md = markdown::render(&classified);
-    let gist_id = gist::publish(&md, config.mobile.gist_id.as_deref())
-        .context("publishing gist")?;
+    let gist_id =
+        gist::publish(&md, config.mobile.gist_id.as_deref()).context("publishing gist")?;
 
     if config.mobile.gist_id.as_deref() != Some(gist_id.as_str()) {
         let mut updated = config.clone();

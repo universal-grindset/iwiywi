@@ -34,8 +34,12 @@ impl Default for Config {
 }
 
 pub fn config_dir() -> PathBuf {
+    // `dirs::home_dir` returns None only on platforms without a HOME concept
+    // (or with a broken environment). iwiywi is a desktop CLI; running it
+    // without a home directory is unrecoverable, so panicking with context
+    // is the honest failure mode.
     dirs::home_dir()
-        .expect("could not find home directory")
+        .expect("could not resolve $HOME — iwiywi requires a writable home directory")
         .join(".iwiywi")
 }
 
@@ -162,7 +166,10 @@ mod tests {
 
     #[test]
     fn parse_idle_secs_defaults_to_sixty_when_none() {
-        assert_eq!(parse_idle_secs(None), Some(std::time::Duration::from_secs(60)));
+        assert_eq!(
+            parse_idle_secs(None),
+            Some(std::time::Duration::from_secs(60))
+        );
     }
 
     #[test]
@@ -172,16 +179,25 @@ mod tests {
 
     #[test]
     fn parse_idle_secs_parses_positive_value() {
-        assert_eq!(parse_idle_secs(Some("15")), Some(std::time::Duration::from_secs(15)));
+        assert_eq!(
+            parse_idle_secs(Some("15")),
+            Some(std::time::Duration::from_secs(15))
+        );
     }
 
     #[test]
     fn parse_idle_secs_falls_back_on_garbage() {
-        assert_eq!(parse_idle_secs(Some("not-a-number")), Some(std::time::Duration::from_secs(60)));
+        assert_eq!(
+            parse_idle_secs(Some("not-a-number")),
+            Some(std::time::Duration::from_secs(60))
+        );
     }
 
     #[test]
     fn parse_idle_secs_falls_back_on_negative() {
-        assert_eq!(parse_idle_secs(Some("-5")), Some(std::time::Duration::from_secs(60)));
+        assert_eq!(
+            parse_idle_secs(Some("-5")),
+            Some(std::time::Duration::from_secs(60))
+        );
     }
 }

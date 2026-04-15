@@ -45,19 +45,28 @@ pub fn render(frame: &mut Frame, app: &App) {
 fn render_tab_bar(frame: &mut Frame, app: &App, area: Rect) {
     let date = chrono::Local::now().format("%a %b %-d").to_string();
     let mut spans: Vec<Span> = vec![
-        Span::styled(" iwiywi ", Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " iwiywi ",
+            Style::default()
+                .fg(app.theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(date, Style::default().fg(app.theme.muted)),
         Span::raw("   "),
     ];
     for tab in [Tab::All, Tab::Steps, Tab::Help] {
         let active = app.tab == tab;
         let key_style = if active {
-            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(app.theme.accent)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(app.theme.muted)
         };
         let label_style = if active {
-            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(app.theme.accent)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(app.theme.muted)
         };
@@ -99,11 +108,17 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
             let header = Line::from(vec![
                 Span::styled(
                     format!("Step {}", app.step_filter),
-                    Style::default().fg(app.theme.heading).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(app.theme.heading)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled("   ←/→ to change   ", Style::default().fg(app.theme.muted)),
                 Span::styled(
-                    format!("({} reading{})", filtered.len(), if filtered.len() == 1 { "" } else { "s" }),
+                    format!(
+                        "({} reading{})",
+                        filtered.len(),
+                        if filtered.len() == 1 { "" } else { "s" }
+                    ),
                     Style::default().fg(app.theme.muted),
                 ),
             ]);
@@ -111,10 +126,17 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
             if filtered.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "No readings classified to this step today.",
-                    Style::default().fg(app.theme.muted).add_modifier(Modifier::ITALIC),
+                    Style::default()
+                        .fg(app.theme.muted)
+                        .add_modifier(Modifier::ITALIC),
                 )));
             } else {
-                lines.extend(reading_lines(&filtered, app.scroll, padded.width, &app.theme));
+                lines.extend(reading_lines(
+                    &filtered,
+                    app.scroll,
+                    padded.width,
+                    &app.theme,
+                ));
             }
             let body = Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false });
             frame.render_widget(body, padded);
@@ -123,7 +145,9 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
             let lines = vec![
                 Line::from(Span::styled(
                     "Keys",
-                    Style::default().fg(app.theme.heading).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(app.theme.heading)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 kv_line("a  s  ?", "jump to a tab", &app.theme),
@@ -135,7 +159,9 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "Theme",
-                    Style::default().fg(app.theme.heading).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(app.theme.heading)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 kv_line("IWIYWI_THEME", "light | dark | auto", &app.theme),
@@ -165,7 +191,9 @@ fn reading_lines<'a>(
         lines.push(Line::from(vec![
             Span::styled(
                 format!("Step {}", reading.step),
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("  ·  {}", reading.source),
@@ -173,7 +201,10 @@ fn reading_lines<'a>(
             ),
         ]));
         for wrapped in wrap_text(&reading.text, wrap_to) {
-            lines.push(Line::from(Span::styled(wrapped, Style::default().fg(theme.body))));
+            lines.push(Line::from(Span::styled(
+                wrapped,
+                Style::default().fg(theme.body),
+            )));
         }
         lines.push(Line::from(""));
     }
@@ -201,9 +232,15 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         if i > 0 {
             spans.push(Span::styled("  ·  ", Style::default().fg(app.theme.muted)));
         }
-        spans.push(Span::styled((*k).to_string(), Style::default().fg(app.theme.accent)));
+        spans.push(Span::styled(
+            (*k).to_string(),
+            Style::default().fg(app.theme.accent),
+        ));
         spans.push(Span::raw(" "));
-        spans.push(Span::styled((*d).to_string(), Style::default().fg(app.theme.muted)));
+        spans.push(Span::styled(
+            (*d).to_string(),
+            Style::default().fg(app.theme.muted),
+        ));
     }
     let footer = Paragraph::new(Line::from(spans));
     frame.render_widget(footer, area);
@@ -233,11 +270,15 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
             lines.push(current.clone());
             current = word.to_string();
         } else {
-            if !current.is_empty() { current.push(' '); }
+            if !current.is_empty() {
+                current.push(' ');
+            }
             current.push_str(word);
         }
     }
-    if !current.is_empty() { lines.push(current); }
+    if !current.is_empty() {
+        lines.push(current);
+    }
     lines
 }
 

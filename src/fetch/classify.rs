@@ -54,16 +54,24 @@ pub async fn classify(
     config: &Config,
     reading: RawReading,
 ) -> Result<ClassifiedReading> {
-    let token = std::env::var("VERCEL_AI_GATEWAY_TOKEN")
-        .context("VERCEL_AI_GATEWAY_TOKEN not set")?;
+    let token =
+        std::env::var("VERCEL_AI_GATEWAY_TOKEN").context("VERCEL_AI_GATEWAY_TOKEN not set")?;
 
     let request = ChatRequest {
         model: &config.ai.model,
         messages: vec![
-            Message { role: "system", content: SYSTEM_PROMPT.to_string() },
-            Message { role: "user", content: reading.text.clone() },
+            Message {
+                role: "system",
+                content: SYSTEM_PROMPT.to_string(),
+            },
+            Message {
+                role: "user",
+                content: reading.text.clone(),
+            },
         ],
-        response_format: ResponseFormat { r#type: "json_object" },
+        response_format: ResponseFormat {
+            r#type: "json_object",
+        },
     };
 
     let url = format!("{}/chat/completions", config.ai.gateway_url);
@@ -77,8 +85,8 @@ pub async fn classify(
 
     let chat: ChatResponse = resp.json().await.context("parsing AI response")?;
     let content = &chat.choices[0].message.content;
-    let result: StepResult = serde_json::from_str(content)
-        .context("parsing step JSON from AI response")?;
+    let result: StepResult =
+        serde_json::from_str(content).context("parsing step JSON from AI response")?;
 
     // Clamp step to valid range
     let step = result.step.clamp(1, 12);
@@ -105,13 +113,15 @@ mod tests {
             .mock("POST", "/chat/completions")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{
+            .with_body(
+                r#"{
                 "choices": [{
                     "message": {
                         "content": "{\"step\": 3, \"reason\": \"Surrender to a Higher Power\"}"
                     }
                 }]
-            }"#)
+            }"#,
+            )
             .create_async()
             .await;
 
@@ -161,8 +171,10 @@ mod tests {
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
         let result = classify(&client, &config, raw).await.unwrap();
         assert_eq!(result.step, 12); // clamped from 99
@@ -175,19 +187,26 @@ mod tests {
             .mock("POST", "/chat/completions")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"choices":[{"message":{"content":"{\"step\":0,\"reason\":\"invalid\"}"}}]}"#)
+            .with_body(
+                r#"{"choices":[{"message":{"content":"{\"step\":0,\"reason\":\"invalid\"}"}}]}"#,
+            )
             .create_async()
             .await;
 
         std::env::set_var("VERCEL_AI_GATEWAY_TOKEN", "test-token");
         let client = Client::new();
         let config = crate::config::Config {
-            ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
+            ai: crate::config::AiConfig {
+                model: "test".to_string(),
+                gateway_url: server.url(),
+            },
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
         let result = classify(&client, &config, raw).await.unwrap();
         assert_eq!(result.step, 1); // clamped from 0
@@ -207,12 +226,17 @@ mod tests {
         std::env::set_var("VERCEL_AI_GATEWAY_TOKEN", "test-token");
         let client = Client::new();
         let config = crate::config::Config {
-            ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
+            ai: crate::config::AiConfig {
+                model: "test".to_string(),
+                gateway_url: server.url(),
+            },
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
 
         let result = classify(&client, &config, raw).await;
@@ -226,19 +250,26 @@ mod tests {
             .mock("POST", "/chat/completions")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"choices":[{"message":{"content":"{\"reason\":\"missing step field\"}"}}]}"#)
+            .with_body(
+                r#"{"choices":[{"message":{"content":"{\"reason\":\"missing step field\"}"}}]}"#,
+            )
             .create_async()
             .await;
 
         std::env::set_var("VERCEL_AI_GATEWAY_TOKEN", "test-token");
         let client = Client::new();
         let config = crate::config::Config {
-            ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
+            ai: crate::config::AiConfig {
+                model: "test".to_string(),
+                gateway_url: server.url(),
+            },
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
 
         let result = classify(&client, &config, raw).await;
@@ -258,8 +289,10 @@ mod tests {
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
 
         let result = classify(&client, &config, raw).await;
@@ -280,7 +313,10 @@ mod tests {
         std::env::set_var("VERCEL_AI_GATEWAY_TOKEN", "test-token");
         let client = Client::new();
         let config = crate::config::Config {
-            ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
+            ai: crate::config::AiConfig {
+                model: "test".to_string(),
+                gateway_url: server.url(),
+            },
             mobile: crate::config::MobileConfig::default(),
         };
 
@@ -312,12 +348,17 @@ mod tests {
         std::env::set_var("VERCEL_AI_GATEWAY_TOKEN", "test-token");
         let client = Client::new();
         let config = crate::config::Config {
-            ai: crate::config::AiConfig { model: "test".to_string(), gateway_url: server.url() },
+            ai: crate::config::AiConfig {
+                model: "test".to_string(),
+                gateway_url: server.url(),
+            },
             mobile: crate::config::MobileConfig::default(),
         };
         let raw = RawReading {
-            source: "Test".to_string(), title: "Test".to_string(),
-            text: "text".to_string(), url: "http://test".to_string(),
+            source: "Test".to_string(),
+            title: "Test".to_string(),
+            text: "text".to_string(),
+            url: "http://test".to_string(),
         };
 
         let result = classify(&client, &config, raw).await;

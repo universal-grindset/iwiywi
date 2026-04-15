@@ -119,16 +119,28 @@ impl App {
         }
     }
 
-    pub fn next_tab(&mut self) { self.set_tab(self.tab.next()); }
-    pub fn prev_tab(&mut self) { self.set_tab(self.tab.prev()); }
+    pub fn next_tab(&mut self) {
+        self.set_tab(self.tab.next());
+    }
+    pub fn prev_tab(&mut self) {
+        self.set_tab(self.tab.prev());
+    }
 
     pub fn step_next(&mut self) {
-        self.step_filter = if self.step_filter >= 12 { 1 } else { self.step_filter + 1 };
+        self.step_filter = if self.step_filter >= 12 {
+            1
+        } else {
+            self.step_filter + 1
+        };
         self.scroll = 0;
     }
 
     pub fn step_prev(&mut self) {
-        self.step_filter = if self.step_filter <= 1 { 12 } else { self.step_filter - 1 };
+        self.step_filter = if self.step_filter <= 1 {
+            12
+        } else {
+            self.step_filter - 1
+        };
         self.scroll = 0;
     }
 
@@ -196,194 +208,6 @@ impl App {
                 state.reading_phase_start = std::time::Instant::now();
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn fixture_app() -> App {
-        App::new(
-            vec![
-                ClassifiedReading {
-                    step: 3,
-                    reason: "test".to_string(),
-                    source: "AA.org".to_string(),
-                    title: "Daily".to_string(),
-                    text: "Made a decision...".to_string(),
-                    url: "https://aa.org".to_string(),
-                },
-                ClassifiedReading {
-                    step: 7,
-                    reason: "test".to_string(),
-                    source: "Hazeldon".to_string(),
-                    title: "Thought".to_string(),
-                    text: "Humbly asked...".to_string(),
-                    url: "https://hazeldon.org".to_string(),
-                },
-            ],
-            "https://iwiywi.vercel.app".to_string(),
-            theme::Theme::dark(),
-            None,
-        )
-    }
-
-    #[test]
-    fn scroll_down_increments_within_bounds() {
-        let mut app = fixture_app();
-        assert_eq!(app.scroll, 0);
-        app.scroll_down();
-        assert_eq!(app.scroll, 1);
-        app.scroll_down();
-        assert_eq!(app.scroll, 1);
-    }
-
-    #[test]
-    fn scroll_up_does_not_underflow() {
-        let mut app = fixture_app();
-        app.scroll_up();
-        assert_eq!(app.scroll, 0);
-    }
-
-    #[test]
-    fn enter_command_mode_sets_mode() {
-        let mut app = fixture_app();
-        app.enter_command_mode();
-        assert!(matches!(app.mode, Mode::Command(_)));
-    }
-
-    #[test]
-    fn push_and_pop_command_chars() {
-        let mut app = fixture_app();
-        app.enter_command_mode();
-        app.push_command_char('q');
-        app.push_command_char('r');
-        assert!(matches!(&app.mode, Mode::Command(s) if s == "qr"));
-        app.pop_command_char();
-        assert!(matches!(&app.mode, Mode::Command(s) if s == "q"));
-    }
-
-    #[test]
-    fn dismiss_returns_to_normal() {
-        let mut app = fixture_app();
-        app.mode = Mode::QrOverlay;
-        app.dismiss();
-        assert_eq!(app.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn toggle_qr_from_normal_sets_overlay() {
-        let mut app = fixture_app();
-        app.toggle_qr();
-        assert_eq!(app.mode, Mode::QrOverlay);
-    }
-
-    #[test]
-    fn toggle_qr_from_overlay_returns_normal() {
-        let mut app = fixture_app();
-        app.mode = Mode::QrOverlay;
-        app.toggle_qr();
-        assert_eq!(app.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn next_tab_cycles_through_all_three() {
-        let mut app = fixture_app();
-        assert_eq!(app.tab, Tab::All);
-        app.next_tab(); assert_eq!(app.tab, Tab::Steps);
-        app.next_tab(); assert_eq!(app.tab, Tab::Help);
-        app.next_tab(); assert_eq!(app.tab, Tab::All);
-    }
-
-    #[test]
-    fn set_tab_resets_scroll() {
-        let mut app = fixture_app();
-        app.scroll = 1;
-        app.set_tab(Tab::Steps);
-        assert_eq!(app.scroll, 0);
-    }
-
-    #[test]
-    fn step_next_wraps_at_twelve() {
-        let mut app = fixture_app();
-        app.step_filter = 12;
-        app.step_next();
-        assert_eq!(app.step_filter, 1);
-    }
-
-    #[test]
-    fn step_prev_wraps_at_one() {
-        let mut app = fixture_app();
-        app.step_filter = 1;
-        app.step_prev();
-        assert_eq!(app.step_filter, 12);
-    }
-
-    #[test]
-    fn register_input_bumps_last_input() {
-        let mut app = fixture_app();
-        let before = app.last_input;
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        app.register_input();
-        assert!(app.last_input > before);
-    }
-
-    #[test]
-    fn register_input_exits_drift() {
-        let mut app = fixture_app();
-        app.mode = Mode::Drift;
-        app.drift = Some(drift::DriftState::new(80, 24, 1));
-        app.register_input();
-        assert_eq!(app.mode, Mode::Normal);
-        assert!(app.drift.is_none());
-    }
-
-    #[test]
-    fn maybe_enter_drift_noop_when_threshold_none() {
-        let mut app = fixture_app();
-        app.idle_threshold = None;
-        app.last_input = std::time::Instant::now() - std::time::Duration::from_secs(3600);
-        app.maybe_enter_drift(80, 24);
-        assert_eq!(app.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn maybe_enter_drift_noop_when_not_idle_long_enough() {
-        let mut app = fixture_app();
-        app.idle_threshold = Some(std::time::Duration::from_secs(60));
-        app.maybe_enter_drift(80, 24);
-        assert_eq!(app.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn maybe_enter_drift_activates_after_threshold() {
-        let mut app = fixture_app();
-        app.idle_threshold = Some(std::time::Duration::from_millis(10));
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        app.maybe_enter_drift(80, 24);
-        assert_eq!(app.mode, Mode::Drift);
-        assert!(app.drift.is_some());
-    }
-
-    #[test]
-    fn maybe_enter_drift_noop_when_readings_empty() {
-        let mut app = fixture_app();
-        app.readings.clear();
-        app.idle_threshold = Some(std::time::Duration::from_millis(1));
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        app.maybe_enter_drift(80, 24);
-        assert_eq!(app.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn maybe_enter_drift_noop_when_already_in_command_mode() {
-        let mut app = fixture_app();
-        app.mode = Mode::Command(String::new());
-        app.idle_threshold = Some(std::time::Duration::from_millis(1));
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        app.maybe_enter_drift(80, 24);
-        assert!(matches!(app.mode, Mode::Command(_)));
     }
 }
 
@@ -492,4 +316,195 @@ pub fn run() -> Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_app() -> App {
+        App::new(
+            vec![
+                ClassifiedReading {
+                    step: 3,
+                    reason: "test".to_string(),
+                    source: "AA.org".to_string(),
+                    title: "Daily".to_string(),
+                    text: "Made a decision...".to_string(),
+                    url: "https://aa.org".to_string(),
+                },
+                ClassifiedReading {
+                    step: 7,
+                    reason: "test".to_string(),
+                    source: "Hazeldon".to_string(),
+                    title: "Thought".to_string(),
+                    text: "Humbly asked...".to_string(),
+                    url: "https://hazeldon.org".to_string(),
+                },
+            ],
+            "https://iwiywi.vercel.app".to_string(),
+            theme::Theme::dark(),
+            None,
+        )
+    }
+
+    #[test]
+    fn scroll_down_increments_within_bounds() {
+        let mut app = fixture_app();
+        assert_eq!(app.scroll, 0);
+        app.scroll_down();
+        assert_eq!(app.scroll, 1);
+        app.scroll_down();
+        assert_eq!(app.scroll, 1);
+    }
+
+    #[test]
+    fn scroll_up_does_not_underflow() {
+        let mut app = fixture_app();
+        app.scroll_up();
+        assert_eq!(app.scroll, 0);
+    }
+
+    #[test]
+    fn enter_command_mode_sets_mode() {
+        let mut app = fixture_app();
+        app.enter_command_mode();
+        assert!(matches!(app.mode, Mode::Command(_)));
+    }
+
+    #[test]
+    fn push_and_pop_command_chars() {
+        let mut app = fixture_app();
+        app.enter_command_mode();
+        app.push_command_char('q');
+        app.push_command_char('r');
+        assert!(matches!(&app.mode, Mode::Command(s) if s == "qr"));
+        app.pop_command_char();
+        assert!(matches!(&app.mode, Mode::Command(s) if s == "q"));
+    }
+
+    #[test]
+    fn dismiss_returns_to_normal() {
+        let mut app = fixture_app();
+        app.mode = Mode::QrOverlay;
+        app.dismiss();
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn toggle_qr_from_normal_sets_overlay() {
+        let mut app = fixture_app();
+        app.toggle_qr();
+        assert_eq!(app.mode, Mode::QrOverlay);
+    }
+
+    #[test]
+    fn toggle_qr_from_overlay_returns_normal() {
+        let mut app = fixture_app();
+        app.mode = Mode::QrOverlay;
+        app.toggle_qr();
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn next_tab_cycles_through_all_three() {
+        let mut app = fixture_app();
+        assert_eq!(app.tab, Tab::All);
+        app.next_tab();
+        assert_eq!(app.tab, Tab::Steps);
+        app.next_tab();
+        assert_eq!(app.tab, Tab::Help);
+        app.next_tab();
+        assert_eq!(app.tab, Tab::All);
+    }
+
+    #[test]
+    fn set_tab_resets_scroll() {
+        let mut app = fixture_app();
+        app.scroll = 1;
+        app.set_tab(Tab::Steps);
+        assert_eq!(app.scroll, 0);
+    }
+
+    #[test]
+    fn step_next_wraps_at_twelve() {
+        let mut app = fixture_app();
+        app.step_filter = 12;
+        app.step_next();
+        assert_eq!(app.step_filter, 1);
+    }
+
+    #[test]
+    fn step_prev_wraps_at_one() {
+        let mut app = fixture_app();
+        app.step_filter = 1;
+        app.step_prev();
+        assert_eq!(app.step_filter, 12);
+    }
+
+    #[test]
+    fn register_input_bumps_last_input() {
+        let mut app = fixture_app();
+        let before = app.last_input;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        app.register_input();
+        assert!(app.last_input > before);
+    }
+
+    #[test]
+    fn register_input_exits_drift() {
+        let mut app = fixture_app();
+        app.mode = Mode::Drift;
+        app.drift = Some(drift::DriftState::new(80, 24, 1));
+        app.register_input();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.drift.is_none());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_threshold_none() {
+        let mut app = fixture_app();
+        app.idle_threshold = None;
+        app.last_input = std::time::Instant::now() - std::time::Duration::from_secs(3600);
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_not_idle_long_enough() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_secs(60));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_activates_after_threshold() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Drift);
+        assert!(app.drift.is_some());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_readings_empty() {
+        let mut app = fixture_app();
+        app.readings.clear();
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_already_in_command_mode() {
+        let mut app = fixture_app();
+        app.mode = Mode::Command(String::new());
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert!(matches!(app.mode, Mode::Command(_)));
+    }
 }

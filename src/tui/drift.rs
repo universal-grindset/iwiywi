@@ -3,8 +3,7 @@ use std::time::Duration;
 pub const FADE_IN: Duration = Duration::from_millis(500);
 pub const LINGER: Duration = Duration::from_millis(7_000);
 pub const FADE_OUT: Duration = Duration::from_millis(500);
-pub const READING_CYCLE: Duration =
-    Duration::from_millis(500 + 7_000 + 500);
+pub const READING_CYCLE: Duration = Duration::from_millis(500 + 7_000 + 500);
 
 /// Compute the alpha (0.0 = invisible, 1.0 = full) for the currently-showing
 /// reading given how long it has been visible.
@@ -196,7 +195,9 @@ pub fn render(
     let header = Line::from(vec![
         Span::styled(
             format!("Step {}", reading.step),
-            Style::default().fg(faded_accent).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(faded_accent)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("  ·  {}", reading.source),
@@ -322,7 +323,10 @@ mod tests {
     fn pseudo_rand_stays_below_one() {
         for n in 0..10_000 {
             let r = pseudo_rand(1, n);
-            assert!(r >= 0.0 && r < 1.0, "pseudo_rand out of [0,1): {r} at n={n}");
+            assert!(
+                (0.0..1.0).contains(&r),
+                "pseudo_rand out of [0,1): {r} at n={n}"
+            );
         }
     }
 
@@ -341,12 +345,18 @@ mod tests {
         let mut grow = DriftState::new(40, 20, 1);
         let grow_before = grow.particles.len();
         grow.resize(160, 50);
-        assert!(grow.particles.len() > grow_before, "grow should add particles");
+        assert!(
+            grow.particles.len() > grow_before,
+            "grow should add particles"
+        );
 
         let mut shrink = DriftState::new(160, 50, 1);
         let shrink_before = shrink.particles.len();
         shrink.resize(40, 20);
-        assert!(shrink.particles.len() < shrink_before, "shrink should drop particles");
+        assert!(
+            shrink.particles.len() < shrink_before,
+            "shrink should drop particles"
+        );
     }
 
     #[test]
@@ -364,7 +374,10 @@ mod tests {
         let a = ratatui::style::Color::Rgb(0, 0, 0);
         let b = ratatui::style::Color::Rgb(200, 200, 200);
         assert_eq!(lerp_color(a, b, 0.0), ratatui::style::Color::Rgb(0, 0, 0));
-        assert_eq!(lerp_color(a, b, 1.0), ratatui::style::Color::Rgb(200, 200, 200));
+        assert_eq!(
+            lerp_color(a, b, 1.0),
+            ratatui::style::Color::Rgb(200, 200, 200)
+        );
     }
 
     #[test]

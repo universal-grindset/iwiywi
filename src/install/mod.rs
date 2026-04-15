@@ -48,18 +48,15 @@ pub fn plist_content(binary: &str, home: &str) -> String {
 }
 
 pub fn run() -> Result<()> {
-    let home = dirs::home_dir()
-        .context("home directory not found")?;
-    let home_str = home.to_str()
-        .context("home path is not valid UTF-8")?;
+    let home = dirs::home_dir().context("home directory not found")?;
+    let home_str = home.to_str().context("home path is not valid UTF-8")?;
 
     let binary = binary_path()?;
     let binary_str = binary.to_str().context("binary path is not valid UTF-8")?;
     let content = plist_content(binary_str, home_str);
     let path = plist_path()?;
 
-    let parent = path.parent()
-        .context("plist path has no parent")?;
+    let parent = path.parent().context("plist path has no parent")?;
     fs::create_dir_all(parent)?;
     fs::write(&path, &content).context("writing plist")?;
 

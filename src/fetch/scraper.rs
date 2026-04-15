@@ -3,26 +3,67 @@ use scraper::{Html, Selector};
 
 use crate::models::RawReading;
 
+type ParseFn = fn(&str) -> Option<RawReading>;
+type Source = (&'static str, &'static str, ParseFn);
+
 pub async fn scrape_all(client: &Client) -> Vec<RawReading> {
-    let sources: Vec<(&str, &str, fn(&str) -> Option<RawReading>)> = vec![
-        ("aa_org",              "https://www.aa.org/daily-reflections",                                           parse_aa_org),
-        ("hazeldon",            "https://www.hazeldenbettyford.org/thought-for-the-day",                          parse_hazeldon),
-        ("happy_hour",          "https://www.aahappyhour.com/aa-daily-readings/",                                  parse_happy_hour),
-        ("silkworth",           "https://silkworth.net",                                                           parse_silkworth),
-        ("aa_online_meeting",   "https://www.aaonlinemeeting.net",                                                 parse_aa_online_meeting),
-        ("aa_big_book",         "https://www.aabigbook.com",                                                       parse_aa_big_book),
-        ("recovering_courage",  "https://www.recoveringcourage.com",                                               parse_recovering_courage),
-        ("odat",                "https://odat.us",                                                                 parse_odat),
-        ("joe_and_charlie",     "https://joeancharlie.com",                                                        parse_joe_and_charlie),
-        ("google",              "https://www.google.com/search?q=aa+thought+for+the+day",                         parse_google_snippet),
-        ("reddit",              "https://www.reddit.com/r/alcoholicsanonymous/search/?q=daily+reading&sort=new",  parse_reddit),
+    let sources: Vec<Source> = vec![
+        (
+            "aa_org",
+            "https://www.aa.org/daily-reflections",
+            parse_aa_org,
+        ),
+        (
+            "hazeldon",
+            "https://www.hazeldenbettyford.org/thought-for-the-day",
+            parse_hazeldon,
+        ),
+        (
+            "happy_hour",
+            "https://www.aahappyhour.com/aa-daily-readings/",
+            parse_happy_hour,
+        ),
+        ("silkworth", "https://silkworth.net", parse_silkworth),
+        (
+            "aa_online_meeting",
+            "https://www.aaonlinemeeting.net",
+            parse_aa_online_meeting,
+        ),
+        (
+            "aa_big_book",
+            "https://www.aabigbook.com",
+            parse_aa_big_book,
+        ),
+        (
+            "recovering_courage",
+            "https://www.recoveringcourage.com",
+            parse_recovering_courage,
+        ),
+        ("odat", "https://odat.us", parse_odat),
+        (
+            "joe_and_charlie",
+            "https://joeancharlie.com",
+            parse_joe_and_charlie,
+        ),
+        (
+            "google",
+            "https://www.google.com/search?q=aa+thought+for+the+day",
+            parse_google_snippet,
+        ),
+        (
+            "reddit",
+            "https://www.reddit.com/r/alcoholicsanonymous/search/?q=daily+reading&sort=new",
+            parse_reddit,
+        ),
     ];
 
     let mut results = Vec::new();
     for (key, url, parse_fn) in &sources {
-        match client.get(*url)
+        match client
+            .get(*url)
             .header("User-Agent", "Mozilla/5.0 (compatible; iwiywi/0.1)")
-            .send().await
+            .send()
+            .await
         {
             Ok(resp) => match resp.text().await {
                 Ok(html) => {
