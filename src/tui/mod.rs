@@ -423,10 +423,12 @@ pub fn run() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     loop {
+        let size = terminal.size()?;
         terminal.draw(|f| widgets::render(f, &app))?;
 
         if event::poll(std::time::Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
+                app.register_input();
                 match &app.mode {
                     Mode::Normal => match key.code {
                         KeyCode::Char('q') => break,
@@ -465,9 +467,14 @@ pub fn run() -> Result<()> {
                     Mode::QrOverlay => {
                         app.dismiss();
                     }
-                    Mode::Drift => {}
+                    Mode::Drift => {
+                        // register_input already exited Drift; nothing else to do.
+                    }
                 }
             }
+        } else {
+            app.maybe_enter_drift(size.width, size.height);
+            app.drift_tick(size.width, size.height);
         }
     }
 
