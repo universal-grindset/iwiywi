@@ -306,6 +306,10 @@ pub fn run() -> Result<()> {
                             KeyCode::BackTab => app.prev_tab(),
                             KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
                             KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
+                            KeyCode::Enter if app.tab == Tab::Steps => {
+                                let step = app.step_filter;
+                                app.enter_pulse(size.width, size.height, Some(step));
+                            }
                             KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
                             KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                             KeyCode::Char('/') => app.enter_command_mode(),
