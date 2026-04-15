@@ -148,9 +148,10 @@ async fn curate(
     config: &Config,
     excerpts: &[(String, String, String)],
 ) -> Result<Vec<CuratedItem>> {
+    use std::fmt::Write;
     let mut user = String::from("Posts:\n\n");
     for (sub, title, body) in excerpts {
-        user.push_str(&format!("[/r/{sub}] {title}\n{body}\n\n"));
+        let _ = writeln!(user, "[/r/{sub}] {title}\n{body}\n");
     }
     let opts = ChatOpts {
         max_tokens: Some(1200),

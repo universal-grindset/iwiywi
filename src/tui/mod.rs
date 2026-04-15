@@ -49,10 +49,13 @@ const JOURNAL_SEED_SYSTEM_PROMPT: &str =
      from the reader's day. Return only the question, no preamble.";
 
 fn sha_hex(input: &str) -> String {
+    use std::fmt::Write;
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());
     let digest = hasher.finalize();
-    digest.iter().map(|b| format!("{b:02x}")).collect()
+    let mut out = String::with_capacity(digest.len() * 2);
+    for b in digest { let _ = write!(out, "{b:02x}"); }
+    out
 }
 
 fn read_cache_file(path: &Path) -> Option<String> {
@@ -84,7 +87,7 @@ pub struct App {
     pub drift: Option<drift::DriftState>,
     /// When true, the settings menu overlays the pulse.
     pub menu_open: bool,
-    /// Which row of the settings menu is highlighted (0..menu::ROW_COUNT).
+    /// Which row of the settings menu is highlighted (`0..menu::ROW_COUNT`).
     pub menu_cursor: usize,
     /// Days since `IWIYWI_SOBER_SINCE`, computed at startup. None if unset.
     pub sobriety_days: Option<i64>,
@@ -95,7 +98,7 @@ pub struct App {
     /// Favorited items persisted to `~/.iwiywi/favorites.json`.
     pub favorites: pulse::favorites::Favorites,
     /// A transient toast shown briefly after an action (copy, export,
-    /// favorite toggle, daily summary). Tuple: (text, set_at, ttl). Rendered
+    /// favorite toggle, daily summary). Tuple: `(text, set_at, ttl)`. Rendered
     /// in the status footer. TTL lets the daily summary linger longer than
     /// the default 1.5s action-feedback toasts.
     pub toast: Option<(String, std::time::Instant, Duration)>,
@@ -103,13 +106,13 @@ pub struct App {
     pub ai_overlay: Option<AiOverlay>,
     /// Receiver for in-flight AI call. `try_recv` polled on each idle tick.
     pub ai_rx: Option<mpsc::Receiver<AiOutcome>>,
-    /// Reqwest client reused across AI calls. None when startup build failed
+    /// `reqwest::Client` reused across AI calls. None when startup build failed
     /// (no network, broken TLS, etc.) — `a` and step meditations then show
     /// an "AI unavailable" toast instead of opening an overlay.
     pub ai_client: Option<reqwest::Client>,
-    /// Gateway config (model, url, api_version) cloned into every AI thread.
+    /// Gateway config (model, url, `api_version`) cloned into every AI thread.
     pub ai_config: Config,
-    /// `(step, pressed_at)` — second tap within STEP_DOUBLE_TAP_MS triggers
+    /// `(step, pressed_at)` — second tap within `STEP_DOUBLE_TAP_MS` triggers
     /// the AI meditation overlay instead of a second focus set.
     pub last_step_press: Option<(u8, Instant)>,
 }
@@ -358,7 +361,7 @@ impl App {
     }
 
     /// A digit key: first press focuses on the step; second press on the
-    /// same digit within STEP_DOUBLE_TAP_MS opens the AI meditation overlay.
+    /// same digit within `STEP_DOUBLE_TAP_MS` opens the AI meditation overlay.
     pub fn handle_step_key(&mut self, step: u8) {
         let now = Instant::now();
         let is_double = matches!(
@@ -411,7 +414,6 @@ impl App {
             menu::Row::Focus => {
                 let next = pulse::cycle(&Focus::ALL_VARIANTS, self.focus, delta);
                 self.focus = next;
-                self.rebuild_source_filter();
                 self.rebuild_mixer();
             }
             menu::Row::PulseSecs => {
@@ -421,18 +423,6 @@ impl App {
                 self.last_advance = Instant::now();
             }
         }
-    }
-
-    /// After a Focus change, rebuild the sources vec so only admitted ones
-    /// feed the mixer. Called from `menu_cycle` when Focus changes.
-    fn rebuild_source_filter(&mut self) {
-        // The source set is fixed-at-startup; we keep a canonical copy of
-        // all sources and filter a view for the mixer. For now, Focus is
-        // applied during `from_sources` by matching on source.name() via
-        // the admits filter in PulseMixer. We only need to rebuild when the
-        // source list itself changes — but since we don't drop sources at
-        // runtime in pulse-only mode, this is a no-op stub. Kept as a hook
-        // so `menu_cycle` reads symmetrically for Focus.
     }
 
     pub fn current_menu_values(&self) -> [String; menu::ROW_COUNT] {
@@ -602,7 +592,7 @@ pub fn run(
                 }
                 if app.ai_overlay.is_some() {
                     match key.code {
-                        KeyCode::Esc | KeyCode::Char('a') | KeyCode::Char('q') => {
+                        KeyCode::Esc | KeyCode::Char('a' | 'q') => {
                             app.close_overlay();
                         }
                         KeyCode::Char('j') | KeyCode::Down => {

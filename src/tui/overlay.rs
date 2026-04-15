@@ -57,7 +57,7 @@ impl AiOverlay {
                 self.status = OverlayStatus::Ready;
             }
             AiOutcome::Error(msg) => {
-                self.body = msg.clone();
+                self.body.clone_from(&msg);
                 self.scroll = 0;
                 self.status = OverlayStatus::Failed(msg);
             }

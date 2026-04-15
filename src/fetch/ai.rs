@@ -1,6 +1,6 @@
 //! Shared gateway chat-completions helper. Every AI call in the app goes
 //! through `post_chat`. Handles the Azure OpenAI vs Vercel AI Gateway auth
-//! split (api-key header + ?api-version=... vs bearer token).
+//! split (`api-key` header + `?api-version=...` vs bearer token).
 
 use anyhow::{Context, Result};
 use reqwest::Client;
