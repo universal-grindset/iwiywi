@@ -199,6 +199,15 @@ impl App {
         self.mode = Mode::Drift;
     }
 
+    pub fn pulse_random_jump(&mut self) {
+        if self.mode != Mode::Drift { return; }
+        if let Some(state) = self.drift.as_mut() {
+            let seed = self.last_input.elapsed().as_nanos() as u32;
+            state.mixer.random_jump(seed);
+            state.reading_phase_start = std::time::Instant::now();
+        }
+    }
+
     pub fn drift_tick(&mut self, width: u16, height: u16) {
         if self.mode != Mode::Drift { return; }
         if let Some(state) = self.drift.as_mut() {
@@ -273,6 +282,12 @@ pub fn run() -> Result<()> {
                     if key.kind != crossterm::event::KeyEventKind::Press {
                         continue;
                     }
+                    // Special-case: `r` inside Drift re-rolls instead of exiting.
+                    if app.mode == Mode::Drift && key.code == KeyCode::Char('r') {
+                        app.last_input = std::time::Instant::now();
+                        app.pulse_random_jump();
+                        continue;
+                    }
                     app.register_input();
                     match &app.mode {
                         Mode::Normal => match key.code {
@@ -280,6 +295,10 @@ pub fn run() -> Result<()> {
                             KeyCode::Char('a') => app.set_tab(Tab::All),
                             KeyCode::Char('p') => {
                                 app.enter_pulse(size.width, size.height, None);
+                            }
+                            KeyCode::Char('r') => {
+                                app.enter_pulse(size.width, size.height, None);
+                                app.pulse_random_jump();
                             }
                             KeyCode::Char('s') => app.set_tab(Tab::Steps),
                             KeyCode::Char('?') => app.set_tab(Tab::Help),
@@ -528,5 +547,19 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(10));
         app.maybe_enter_drift(80, 24);
         assert!(matches!(app.mode, Mode::Command(_)));
+    }
+
+    #[test]
+    fn pulse_random_jump_in_drift_mode_resets_phase_clock() {
+        let mut app = fixture_app();
+        app.pulse_sources = vec![Box::new(crate::pulse::today::TodayReadings::from_readings(&app.readings))];
+        let mixer = crate::pulse::PulseMixer::from_sources(&app.pulse_sources, None);
+        app.drift = Some(drift::DriftState::new(80, 24, 1, mixer));
+        app.mode = Mode::Drift;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let before = app.drift.as_ref().unwrap().reading_phase_start;
+        app.pulse_random_jump();
+        let after = app.drift.as_ref().unwrap().reading_phase_start;
+        assert!(after > before, "phase clock should reset");
     }
 }
