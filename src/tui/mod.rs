@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod drift;
 pub mod qr;
 pub mod theme;
 pub mod widgets;
@@ -10,6 +11,7 @@ pub enum Mode {
     Normal,
     Command(String),
     QrOverlay,
+    Drift,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,6 +63,9 @@ pub struct App {
     pub step_filter: u8,
     pub qr_url: String,
     pub theme: theme::Theme,
+    pub last_input: std::time::Instant,
+    pub idle_threshold: Option<std::time::Duration>,
+    pub drift: Option<drift::DriftState>,
 }
 
 impl App {
@@ -68,6 +73,7 @@ impl App {
         readings: Vec<ClassifiedReading>,
         qr_url: String,
         theme: theme::Theme,
+        idle_threshold: Option<std::time::Duration>,
     ) -> Self {
         App {
             readings,
@@ -77,6 +83,9 @@ impl App {
             step_filter: 1,
             qr_url,
             theme,
+            last_input: std::time::Instant::now(),
+            idle_threshold,
+            drift: None,
         }
     }
 
@@ -149,6 +158,45 @@ impl App {
             _ => Mode::QrOverlay,
         };
     }
+
+    pub fn register_input(&mut self) {
+        self.last_input = std::time::Instant::now();
+        if self.mode == Mode::Drift {
+            self.mode = Mode::Normal;
+            self.drift = None;
+        }
+    }
+
+    pub fn maybe_enter_drift(&mut self, width: u16, height: u16) {
+        let Some(threshold) = self.idle_threshold else {
+            return;
+        };
+        if self.mode != Mode::Normal {
+            return;
+        }
+        if self.readings.is_empty() {
+            return;
+        }
+        if self.last_input.elapsed() < threshold {
+            return;
+        }
+        let seed = self.last_input.elapsed().as_nanos() as u32;
+        self.drift = Some(drift::DriftState::new(width, height, seed));
+        self.mode = Mode::Drift;
+    }
+
+    pub fn drift_tick(&mut self, width: u16, height: u16) {
+        if self.mode != Mode::Drift {
+            return;
+        }
+        if let Some(state) = self.drift.as_mut() {
+            state.tick(width, height, std::time::Duration::from_millis(50));
+            if state.reading_phase_start.elapsed() >= drift::READING_CYCLE {
+                state.reading_idx = (state.reading_idx + 1) % self.readings.len();
+                state.reading_phase_start = std::time::Instant::now();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -177,6 +225,7 @@ mod tests {
             ],
             "https://iwiywi.vercel.app".to_string(),
             theme::Theme::dark(),
+            None,
         )
     }
 
@@ -270,6 +319,72 @@ mod tests {
         app.step_prev();
         assert_eq!(app.step_filter, 12);
     }
+
+    #[test]
+    fn register_input_bumps_last_input() {
+        let mut app = fixture_app();
+        let before = app.last_input;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        app.register_input();
+        assert!(app.last_input > before);
+    }
+
+    #[test]
+    fn register_input_exits_drift() {
+        let mut app = fixture_app();
+        app.mode = Mode::Drift;
+        app.drift = Some(drift::DriftState::new(80, 24, 1));
+        app.register_input();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.drift.is_none());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_threshold_none() {
+        let mut app = fixture_app();
+        app.idle_threshold = None;
+        app.last_input = std::time::Instant::now() - std::time::Duration::from_secs(3600);
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_not_idle_long_enough() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_secs(60));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_activates_after_threshold() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Drift);
+        assert!(app.drift.is_some());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_readings_empty() {
+        let mut app = fixture_app();
+        app.readings.clear();
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_already_in_command_mode() {
+        let mut app = fixture_app();
+        app.mode = Mode::Command(String::new());
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert!(matches!(app.mode, Mode::Command(_)));
+    }
 }
 
 use anyhow::Result;
@@ -294,7 +409,12 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let mut app = App::new(readings, crate::config::qr_url(&config), theme::detect());
+    let mut app = App::new(
+        readings,
+        crate::config::qr_url(&config),
+        theme::detect(),
+        crate::config::idle_secs(),
+    );
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -303,50 +423,69 @@ pub fn run() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     loop {
+        let size = terminal.size()?;
         terminal.draw(|f| widgets::render(f, &app))?;
 
         if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                match &app.mode {
-                    Mode::Normal => match key.code {
-                        KeyCode::Char('q') => break,
-                        KeyCode::Char('a') => app.set_tab(Tab::All),
-                        KeyCode::Char('s') => app.set_tab(Tab::Steps),
-                        KeyCode::Char('?') => app.set_tab(Tab::Help),
-                        KeyCode::Tab => app.next_tab(),
-                        KeyCode::BackTab => app.prev_tab(),
-                        KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
-                        KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
-                        KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
-                        KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
-                        KeyCode::Char('/') => app.enter_command_mode(),
-                        _ => {}
-                    },
-                    Mode::Command(_) => match key.code {
-                        KeyCode::Esc => app.dismiss(),
-                        KeyCode::Enter => {
-                            let cmd = if let Mode::Command(s) = &app.mode {
-                                s.clone()
-                            } else {
-                                String::new()
-                            };
-                            app.dismiss();
-                            match handle_command(&cmd) {
-                                Action::ToggleQr => app.toggle_qr(),
-                                Action::Unknown => {}
-                            }
-                        }
-                        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            app.push_command_char(c);
-                        }
-                        KeyCode::Backspace => app.pop_command_char(),
-                        _ => {}
-                    },
-                    Mode::QrOverlay => {
-                        app.dismiss();
+            match event::read()? {
+                Event::Resize(w, h) => {
+                    if let Some(state) = app.drift.as_mut() {
+                        state.resize(w, h);
                     }
                 }
+                Event::Key(key) => {
+                    if key.kind != crossterm::event::KeyEventKind::Press {
+                        continue;
+                    }
+                    app.register_input();
+                    match &app.mode {
+                        Mode::Normal => match key.code {
+                            KeyCode::Char('q') => break,
+                            KeyCode::Char('a') => app.set_tab(Tab::All),
+                            KeyCode::Char('s') => app.set_tab(Tab::Steps),
+                            KeyCode::Char('?') => app.set_tab(Tab::Help),
+                            KeyCode::Tab => app.next_tab(),
+                            KeyCode::BackTab => app.prev_tab(),
+                            KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
+                            KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
+                            KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
+                            KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
+                            KeyCode::Char('/') => app.enter_command_mode(),
+                            _ => {}
+                        },
+                        Mode::Command(_) => match key.code {
+                            KeyCode::Esc => app.dismiss(),
+                            KeyCode::Enter => {
+                                let cmd = if let Mode::Command(s) = &app.mode {
+                                    s.clone()
+                                } else {
+                                    String::new()
+                                };
+                                app.dismiss();
+                                match handle_command(&cmd) {
+                                    Action::ToggleQr => app.toggle_qr(),
+                                    Action::Unknown => {}
+                                }
+                            }
+                            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                app.push_command_char(c);
+                            }
+                            KeyCode::Backspace => app.pop_command_char(),
+                            _ => {}
+                        },
+                        Mode::QrOverlay => {
+                            app.dismiss();
+                        }
+                        Mode::Drift => {
+                            // register_input already exited Drift; nothing else to do.
+                        }
+                    }
+                }
+                _ => {}
             }
+        } else {
+            app.maybe_enter_drift(size.width, size.height);
+            app.drift_tick(size.width, size.height);
         }
     }
 
