@@ -39,6 +39,7 @@ iwiywi install
 - QR overlay (`/qr`) for mobile handoff
 - Adaptive light/dark palette, auto-detected from terminal background
 - Runs daily at 6am via launchd
+- Idle screensaver: flow-field drift animation cycles today's readings after 60s
 
 ## Theme
 
@@ -48,6 +49,14 @@ iwiywi picks light or dark colors from your terminal background. Override if det
 export IWIYWI_THEME=light  # force light palette
 export IWIYWI_THEME=dark   # force dark palette
 export IWIYWI_THEME=auto   # auto-detect (default)
+```
+
+Set how long until the screensaver activates, or disable it:
+
+```sh
+export IWIYWI_IDLE_SECS=60   # default
+export IWIYWI_IDLE_SECS=10   # faster idle
+export IWIYWI_IDLE_SECS=0    # never activate
 ```
 
 ## How it works
