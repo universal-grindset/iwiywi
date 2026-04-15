@@ -21,6 +21,98 @@ pub fn reading_alpha(elapsed: Duration) -> f32 {
     }
 }
 
+use noise::{NoiseFn, Perlin};
+use std::time::Instant;
+
+pub struct Particle {
+    pub x: f32,
+    pub y: f32,
+    pub trail: [Option<(u16, u16)>; 4],
+}
+
+pub struct DriftState {
+    pub particles: Vec<Particle>,
+    noise: Perlin,
+    pub start: Instant,
+    pub reading_idx: usize,
+    pub reading_phase_start: Instant,
+}
+
+const PARTICLES_MIN: usize = 20;
+const PARTICLES_MAX: usize = 120;
+const DIVISOR: usize = 30;
+const FIELD_SCALE: f64 = 0.06;
+const TIME_SCALE: f64 = 0.25;
+const MAX_STEP: f32 = 0.8;
+
+fn particle_count(w: u16, h: u16) -> usize {
+    let area = (w as usize) * (h as usize);
+    (area / DIVISOR).clamp(PARTICLES_MIN, PARTICLES_MAX)
+}
+
+fn pseudo_rand(seed: u32, n: usize) -> f32 {
+    let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(n as u32);
+    x ^= x >> 13;
+    x = x.wrapping_mul(0x5bd1e995);
+    x ^= x >> 15;
+    (x as f32) / (u32::MAX as f32)
+}
+
+impl DriftState {
+    pub fn new(width: u16, height: u16, seed: u32) -> Self {
+        let count = particle_count(width, height);
+        let particles = (0..count)
+            .map(|i| Particle {
+                x: pseudo_rand(seed, i * 2) * (width as f32),
+                y: pseudo_rand(seed, i * 2 + 1) * (height as f32),
+                trail: [None; 4],
+            })
+            .collect();
+        let now = Instant::now();
+        DriftState {
+            particles,
+            noise: Perlin::new(seed),
+            start: now,
+            reading_idx: 0,
+            reading_phase_start: now,
+        }
+    }
+
+    pub fn tick(&mut self, width: u16, height: u16, _dt: std::time::Duration) {
+        if width == 0 || height == 0 {
+            return;
+        }
+        let t = self.start.elapsed().as_secs_f64();
+        for p in &mut self.particles {
+            p.trail[3] = p.trail[2];
+            p.trail[2] = p.trail[1];
+            p.trail[1] = p.trail[0];
+            p.trail[0] = Some((p.x as u16, p.y as u16));
+
+            let fx = p.x as f64 * FIELD_SCALE;
+            let fy = p.y as f64 * FIELD_SCALE;
+            let vx = self.noise.get([fx, fy, t * TIME_SCALE]) as f32;
+            let vy = self.noise.get([fx, fy, t * TIME_SCALE + 100.0]) as f32;
+            let vx = vx.clamp(-MAX_STEP, MAX_STEP);
+            let vy = vy.clamp(-MAX_STEP, MAX_STEP);
+
+            p.x = wrap(p.x + vx, width as f32);
+            p.y = wrap(p.y + vy, height as f32);
+        }
+    }
+}
+
+fn wrap(v: f32, max: f32) -> f32 {
+    if max <= 0.0 {
+        return 0.0;
+    }
+    let mut r = v % max;
+    if r < 0.0 {
+        r += max;
+    }
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,5 +142,37 @@ mod tests {
     #[test]
     fn alpha_zero_after_full_cycle() {
         assert!(reading_alpha(READING_CYCLE + Duration::from_millis(1)) < 0.01);
+    }
+
+    #[test]
+    fn new_scales_particle_count_with_area() {
+        let small = DriftState::new(40, 20, 1);
+        let large = DriftState::new(160, 50, 1);
+        assert!(large.particles.len() > small.particles.len());
+        assert!(small.particles.len() >= 10);
+        assert!(large.particles.len() <= 120);
+    }
+
+    #[test]
+    fn particles_stay_in_bounds_after_many_ticks() {
+        let mut s = DriftState::new(80, 24, 1);
+        for _ in 0..200 {
+            s.tick(80, 24, Duration::from_millis(50));
+        }
+        for p in &s.particles {
+            assert!(p.x >= 0.0 && p.x < 80.0, "x out of bounds: {}", p.x);
+            assert!(p.y >= 0.0 && p.y < 24.0, "y out of bounds: {}", p.y);
+        }
+    }
+
+    #[test]
+    fn trail_length_is_four_after_four_ticks() {
+        let mut s = DriftState::new(80, 24, 1);
+        for _ in 0..4 {
+            s.tick(80, 24, Duration::from_millis(50));
+        }
+        for p in &s.particles {
+            assert!(p.trail.iter().filter(|t| t.is_some()).count() == 4);
+        }
     }
 }
