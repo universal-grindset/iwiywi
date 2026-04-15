@@ -55,7 +55,8 @@ fn pseudo_rand(seed: u32, n: usize) -> f32 {
     x ^= x >> 13;
     x = x.wrapping_mul(0x5bd1e995);
     x ^= x >> 15;
-    (x as f32) / (u32::MAX as f32)
+    // Use the top 24 bits so the division is exact in f32, guaranteeing [0, 1).
+    ((x >> 8) as f32) / ((1u32 << 24) as f32)
 }
 
 impl DriftState {
@@ -110,6 +111,9 @@ fn wrap(v: f32, max: f32) -> f32 {
     if r < 0.0 {
         r += max;
     }
+    if r >= max {
+        r -= max;
+    }
     r
 }
 
@@ -162,6 +166,10 @@ mod tests {
         for p in &s.particles {
             assert!(p.x >= 0.0 && p.x < 80.0, "x out of bounds: {}", p.x);
             assert!(p.y >= 0.0 && p.y < 24.0, "y out of bounds: {}", p.y);
+            for t in p.trail.iter().flatten() {
+                assert!(t.0 < 80, "trail x out of bounds: {}", t.0);
+                assert!(t.1 < 24, "trail y out of bounds: {}", t.1);
+            }
         }
     }
 
@@ -173,6 +181,25 @@ mod tests {
         }
         for p in &s.particles {
             assert!(p.trail.iter().filter(|t| t.is_some()).count() == 4);
+        }
+    }
+
+    #[test]
+    fn wrap_handles_max_rounding_edge_case() {
+        // Negative near-zero values should not land exactly at max due to f32 rounding.
+        assert!(wrap(-1e-10_f32, 80.0) < 80.0);
+        assert!(wrap(-1e-10_f32, 80.0) >= 0.0);
+        // Already-in-bounds values are unchanged.
+        assert_eq!(wrap(40.0, 80.0), 40.0);
+        // Zero max returns zero.
+        assert_eq!(wrap(50.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn pseudo_rand_stays_below_one() {
+        for n in 0..10_000 {
+            let r = pseudo_rand(1, n);
+            assert!(r >= 0.0 && r < 1.0, "pseudo_rand out of [0,1): {r} at n={n}");
         }
     }
 }
