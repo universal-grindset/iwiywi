@@ -158,6 +158,44 @@ impl App {
             _ => Mode::QrOverlay,
         };
     }
+
+    pub fn register_input(&mut self) {
+        self.last_input = std::time::Instant::now();
+        if self.mode == Mode::Drift {
+            self.mode = Mode::Normal;
+            self.drift = None;
+        }
+    }
+
+    pub fn maybe_enter_drift(&mut self, width: u16, height: u16) {
+        let Some(threshold) = self.idle_threshold else {
+            return;
+        };
+        if self.mode != Mode::Normal {
+            return;
+        }
+        if self.readings.is_empty() {
+            return;
+        }
+        if self.last_input.elapsed() < threshold {
+            return;
+        }
+        self.drift = Some(drift::DriftState::new(width, height, 1));
+        self.mode = Mode::Drift;
+    }
+
+    pub fn drift_tick(&mut self, width: u16, height: u16) {
+        if self.mode != Mode::Drift {
+            return;
+        }
+        if let Some(state) = self.drift.as_mut() {
+            state.tick(width, height, std::time::Duration::from_millis(50));
+            if state.reading_phase_start.elapsed() >= drift::READING_CYCLE {
+                state.reading_idx = (state.reading_idx + 1) % self.readings.len();
+                state.reading_phase_start = std::time::Instant::now();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -279,6 +317,72 @@ mod tests {
         app.step_filter = 1;
         app.step_prev();
         assert_eq!(app.step_filter, 12);
+    }
+
+    #[test]
+    fn register_input_bumps_last_input() {
+        let mut app = fixture_app();
+        let before = app.last_input;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        app.register_input();
+        assert!(app.last_input > before);
+    }
+
+    #[test]
+    fn register_input_exits_drift() {
+        let mut app = fixture_app();
+        app.mode = Mode::Drift;
+        app.drift = Some(drift::DriftState::new(80, 24, 1));
+        app.register_input();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.drift.is_none());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_threshold_none() {
+        let mut app = fixture_app();
+        app.idle_threshold = None;
+        app.last_input = std::time::Instant::now() - std::time::Duration::from_secs(3600);
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_not_idle_long_enough() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_secs(60));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_activates_after_threshold() {
+        let mut app = fixture_app();
+        app.idle_threshold = Some(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Drift);
+        assert!(app.drift.is_some());
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_readings_empty() {
+        let mut app = fixture_app();
+        app.readings.clear();
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn maybe_enter_drift_noop_when_already_in_command_mode() {
+        let mut app = fixture_app();
+        app.mode = Mode::Command(String::new());
+        app.idle_threshold = Some(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.maybe_enter_drift(80, 24);
+        assert!(matches!(app.mode, Mode::Command(_)));
     }
 }
 
