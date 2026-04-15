@@ -312,6 +312,14 @@ impl PulseMixer {
 
     /// Jump to a deterministic random index from `seed`. Stays in-bounds.
     /// On a 1-item mixer it's a no-op.
+    /// Set the cursor to a specific index. Bounds-checked: out-of-range
+    /// indices become a no-op. Used by `/`-search to jump to a match.
+    pub fn jump_to(&mut self, index: usize) {
+        if index < self.items.len() {
+            self.cursor = index;
+        }
+    }
+
     pub fn random_jump(&mut self, seed: u32) {
         if self.items.len() < 2 {
             return;

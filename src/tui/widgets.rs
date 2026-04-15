@@ -6,11 +6,33 @@ use ratatui::{
     Frame,
 };
 
+use ratatui::buffer::Buffer;
+use ratatui::layout::Alignment;
+
 use crate::pulse::PulseItem;
 use crate::tui::drift::{self, DriftState};
 use crate::tui::palette::Palette;
 use crate::tui::pattern::{self, Pattern};
 use crate::tui::text_size::TextSize;
+
+fn render_too_small(buf: &mut Buffer, area: ratatui::layout::Rect, palette: &Palette) {
+    let msg = format!(
+        "terminal too small\nneed at least {MIN_WIDTH}×{MIN_HEIGHT} cells"
+    );
+    let y = area.y + area.height / 2;
+    let h = 2u16;
+    let rect = ratatui::layout::Rect {
+        x: area.x, y: y.saturating_sub(1),
+        width: area.width, height: h.min(area.height),
+    };
+    Paragraph::new(msg)
+        .style(Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC))
+        .alignment(Alignment::Center)
+        .render(rect, buf);
+}
+
+pub const MIN_WIDTH: u16 = 60;
+pub const MIN_HEIGHT: u16 = 15;
 
 pub fn render_pulse(
     frame: &mut Frame,
@@ -23,6 +45,15 @@ pub fn render_pulse(
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
+
+    // Minimum-size gate. Per tui-design skill: below the usable threshold,
+    // show one clear message instead of corrupt layout. The caller-level
+    // overlays (status/menu/moon) also check their own minimums; this is
+    // the main content's floor.
+    if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+        render_too_small(buf, area, palette);
+        return;
+    }
 
     let Some(item) = item else { return; };
 

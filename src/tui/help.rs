@@ -38,9 +38,10 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
     Widget::render(block, rect, buf);
 
     let rows: &[(&str, &str)] = &[
-        ("n", "next item"),
+        ("n / N", "next / previous (or match when searching)"),
         ("p", "previous item"),
         ("r", "random item"),
+        ("/", "search (Enter jumps to first match, Esc cancels)"),
         ("space", "pause / resume"),
         ("1–9 0 - =", "focus Step 1–12 · tap twice: AI meditation"),
         ("*", "clear step focus"),

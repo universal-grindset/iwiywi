@@ -26,6 +26,11 @@ pub struct StatusLine<'a> {
     /// When `Some`, this overrides the right-hand sobriety slot with a
     /// transient message (e.g. "copied", "★ saved").
     pub toast: Option<&'a str>,
+    /// Active `/`-search query. When `Some`, takes over the left slot.
+    pub search_query: Option<&'a str>,
+    /// Number of matches for a submitted search. Shown after the query
+    /// exits search mode so the user knows how many `n`/`N` stops exist.
+    pub search_match_count: Option<usize>,
 }
 
 pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
@@ -83,6 +88,10 @@ pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
 }
 
 fn left_text(status: &StatusLine) -> String {
+    // Active search prompt takes over the left slot: `/query_`.
+    if let Some(q) = status.search_query {
+        return format!("/{q}_");
+    }
     let pos = status.mixer.cursor() + 1;
     let total = status.mixer.len().max(1);
     let focus_chip = match (status.focus_step, status.focus) {
@@ -90,11 +99,14 @@ fn left_text(status: &StatusLine) -> String {
         (None, Focus::All) => String::new(),
         (None, f) => format!("focus: {}", f.label()),
     };
+    let search_chip = status.search_match_count
+        .filter(|n| *n > 0)
+        .map_or(String::new(), |n| format!(" · {n} match{}", if n == 1 { "" } else { "es" }));
     let paused = if status.paused { " · paused" } else { "" };
     if focus_chip.is_empty() {
-        format!("{pos} / {total}{paused}")
+        format!("{pos} / {total}{search_chip}{paused}")
     } else {
-        format!("{pos} / {total} · {focus_chip}{paused}")
+        format!("{pos} / {total} · {focus_chip}{search_chip}{paused}")
     }
 }
 
@@ -149,6 +161,7 @@ mod tests {
         StatusLine {
             mixer, focus: Focus::All, focus_step: None,
             pulse_progress: None, sobriety_days: None, paused: false, toast: None,
+            search_query: None, search_match_count: None,
         }
     }
 

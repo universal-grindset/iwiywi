@@ -16,7 +16,7 @@ use anyhow::Result;
 use crossterm::{
     event::{
         DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyEventKind,
-        MouseButton, MouseEvent, MouseEventKind,
+        KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -148,6 +148,16 @@ pub struct App {
     /// Set true by the `j` handler after returning from `$EDITOR`; the main
     /// loop notices and calls `terminal.clear()` before the next draw.
     pub need_clear: bool,
+    /// True while the `/` search prompt is active. Status bar shows
+    /// `/query_` and every keystroke appends to the query.
+    pub search_mode: bool,
+    /// Current search query (lowercased on use).
+    pub search_query: String,
+    /// Mixer indices matching the last submitted query. `n`/`N` cycle
+    /// through these.
+    pub search_matches: Vec<usize>,
+    /// Which match index is currently displayed.
+    pub search_cursor: usize,
 }
 
 const IDLE_DIM_AFTER: Duration = Duration::from_secs(300);
@@ -335,13 +345,100 @@ impl App {
         }
     }
 
+    /// Enter search mode. Status bar swaps to the `/query_` prompt.
+    pub fn enter_search(&mut self) {
+        self.search_mode = true;
+        self.search_query.clear();
+        self.search_matches.clear();
+        self.search_cursor = 0;
+    }
+
+    /// Leave search mode without applying. Clears the match list so
+    /// subsequent `n`/`N` fall back to normal advance/retreat.
+    pub fn cancel_search(&mut self) {
+        self.search_mode = false;
+        self.search_query.clear();
+        self.search_matches.clear();
+        self.search_cursor = 0;
+    }
+
+    /// Leave search mode and jump to the first match (if any). Keeps the
+    /// match list live so `n`/`N` cycle through results.
+    pub fn submit_search(&mut self) {
+        self.recompute_matches();
+        self.search_mode = false;
+        if let Some(&idx) = self.search_matches.first() {
+            self.mixer.jump_to(idx);
+            self.search_cursor = 0;
+            self.last_advance = Instant::now();
+        }
+    }
+
+    fn recompute_matches(&mut self) {
+        self.search_matches.clear();
+        if self.search_query.trim().is_empty() { return; }
+        let q = self.search_query.to_lowercase();
+        for (i, item) in self.mixer.all().iter().enumerate() {
+            if item.label.to_lowercase().contains(&q)
+                || item.body.to_lowercase().contains(&q)
+            {
+                self.search_matches.push(i);
+            }
+        }
+    }
+
+    /// Next key-press while in search mode: append / delete / submit.
+    fn search_keystroke(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Char(c) => self.search_query.push(c),
+            KeyCode::Backspace => { self.search_query.pop(); }
+            KeyCode::Enter => { self.submit_search(); return; }
+            KeyCode::Esc => { self.cancel_search(); return; }
+            _ => {}
+        }
+        // Live-preview: recompute matches on every keystroke so the user
+        // sees the match count tick down as they type. Jumping only
+        // happens on Enter.
+        self.recompute_matches();
+    }
+
+    /// `n` in normal mode. When search matches exist, cycle to the next
+    /// one; otherwise do a plain advance.
+    fn next_or_match(&mut self) {
+        if self.search_matches.is_empty() {
+            self.next();
+            return;
+        }
+        self.search_cursor = (self.search_cursor + 1) % self.search_matches.len();
+        self.mixer.jump_to(self.search_matches[self.search_cursor]);
+        self.last_advance = Instant::now();
+    }
+
+    /// `N` in normal mode. Previous match, or plain retreat.
+    fn prev_or_match(&mut self) {
+        if self.search_matches.is_empty() {
+            self.prev();
+            return;
+        }
+        let len = self.search_matches.len();
+        self.search_cursor = (self.search_cursor + len - 1) % len;
+        self.mixer.jump_to(self.search_matches[self.search_cursor]);
+        self.last_advance = Instant::now();
+    }
+
     /// Single dispatch for every `Event` the terminal produces. Pulled out
     /// of the main loop so `run()` can stay narrow — just select! arms
     /// and rendering. No blocking I/O here; side effects are pure state
     /// mutations on `self` (e.g. spawn_ai fires a background task and
     /// returns immediately).
     pub fn handle_event(&mut self, ev: Event, size_w: u16, size_h: u16) {
-        if let Event::Mouse(MouseEvent { kind, .. }) = ev {
+        if let Event::Mouse(MouseEvent { kind, modifiers, .. }) = ev {
+            // Shift+click: let the terminal handle text selection rather
+            // than swallowing the event. Per tui-design skill: "Mouse
+            // capture doesn't break text selection (Shift+click)."
+            if modifiers.contains(KeyModifiers::SHIFT) {
+                return;
+            }
             if let MouseEventKind::Down(MouseButton::Left) = kind {
                 // Only clicks reset the idle timer — mouse-move events
                 // would otherwise keep the UI awake forever.
@@ -361,6 +458,11 @@ impl App {
         let Event::Key(key) = ev else { return; };
         if key.kind != KeyEventKind::Press { return; }
         self.last_input = Instant::now();
+        // Search mode captures every keystroke until Enter / Esc.
+        if self.search_mode {
+            self.search_keystroke(key.code);
+            return;
+        }
         if self.help_open {
             self.help_open = false;
             return;
@@ -393,7 +495,9 @@ impl App {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char('m') => self.menu_open = true,
             KeyCode::Char('?') => self.help_open = true,
-            KeyCode::Char('n') => self.next(),
+            KeyCode::Char('/') => self.enter_search(),
+            KeyCode::Char('n') => self.next_or_match(),
+            KeyCode::Char('N') => self.prev_or_match(),
             KeyCode::Char('p') => self.prev(),
             KeyCode::Char('r') => self.random(),
             KeyCode::Char(' ') => {
@@ -747,6 +851,10 @@ pub async fn run(
         last_drift_tick: Instant::now(),
         last_draw: Instant::now() - Duration::from_secs(1),
         need_clear: false,
+        search_mode: false,
+        search_query: String::new(),
+        search_matches: Vec::new(),
+        search_cursor: 0,
     };
 
     // Spawn background AI tasks. Each runs as a tokio::spawn'd task on
@@ -823,6 +931,12 @@ pub async fn run(
                     sobriety_days: app.sobriety_days,
                     paused: app.paused,
                     toast,
+                    search_query: if app.search_mode { Some(app.search_query.as_str()) } else { None },
+                    search_match_count: if app.search_mode || app.search_matches.is_empty() {
+                        None
+                    } else {
+                        Some(app.search_matches.len())
+                    },
                 };
                 status::render(f, &eff_palette, &status_line);
                 if app.menu_open {
@@ -950,6 +1064,10 @@ mod tests {
             last_drift_tick: Instant::now(),
             last_draw: Instant::now(),
             need_clear: false,
+            search_mode: false,
+            search_query: String::new(),
+            search_matches: Vec::new(),
+            search_cursor: 0,
         }
     }
 

@@ -797,7 +797,23 @@ pub fn from_env() -> Palette {
         Some("auto") => auto_variant(chrono::Local::now().hour()),
         other => Variant::parse(other),
     };
-    Palette::build(mode, variant)
+    let mut p = Palette::build(mode, variant);
+    if no_color_requested() {
+        // NO_COLOR: return all Reset colors so the terminal's default fg/bg
+        // apply. The user still gets style modifiers (bold, italic, reverse)
+        // which the tui-design skill flags as the correct fallback for
+        // monochrome rendering.
+        p.accent = Color::Reset;
+        p.body = Color::Reset;
+        p.muted = Color::Reset;
+    }
+    p
+}
+
+/// True when the user has set the `NO_COLOR` environment variable. Per the
+/// https://no-color.org standard: any non-empty value disables color.
+pub fn no_color_requested() -> bool {
+    std::env::var("NO_COLOR").ok().is_some_and(|v| !v.is_empty())
 }
 
 /// True when the user asked for the time-of-day auto palette. Lets the
