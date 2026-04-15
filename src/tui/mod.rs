@@ -11,6 +11,7 @@ pub enum Mode {
     Normal,
     Command(String),
     QrOverlay,
+    Drift,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,6 +63,9 @@ pub struct App {
     pub step_filter: u8,
     pub qr_url: String,
     pub theme: theme::Theme,
+    pub last_input: std::time::Instant,
+    pub idle_threshold: Option<std::time::Duration>,
+    pub drift: Option<drift::DriftState>,
 }
 
 impl App {
@@ -69,6 +73,7 @@ impl App {
         readings: Vec<ClassifiedReading>,
         qr_url: String,
         theme: theme::Theme,
+        idle_threshold: Option<std::time::Duration>,
     ) -> Self {
         App {
             readings,
@@ -78,6 +83,9 @@ impl App {
             step_filter: 1,
             qr_url,
             theme,
+            last_input: std::time::Instant::now(),
+            idle_threshold,
+            drift: None,
         }
     }
 
@@ -178,6 +186,7 @@ mod tests {
             ],
             "https://iwiywi.vercel.app".to_string(),
             theme::Theme::dark(),
+            None,
         )
     }
 
@@ -295,7 +304,12 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let mut app = App::new(readings, crate::config::qr_url(&config), theme::detect());
+    let mut app = App::new(
+        readings,
+        crate::config::qr_url(&config),
+        theme::detect(),
+        crate::config::idle_secs(),
+    );
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -346,6 +360,7 @@ pub fn run() -> Result<()> {
                     Mode::QrOverlay => {
                         app.dismiss();
                     }
+                    Mode::Drift => {}
                 }
             }
         }

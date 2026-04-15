@@ -29,7 +29,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     match &app.mode {
         Mode::Command(s) => render_command_bar(frame, &app.theme, s, area),
         Mode::QrOverlay => crate::tui::qr::render_qr_overlay(frame, &app.theme, &app.qr_url, area),
-        Mode::Normal => {}
+        Mode::Normal | Mode::Drift => {}
     }
 }
 
