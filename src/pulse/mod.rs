@@ -3,6 +3,7 @@
 //! prayers, Steps + Principles) and the mixer interleaves them.
 
 pub mod bundled;
+pub mod grapevine;
 pub mod historical;
 pub mod today;
 
