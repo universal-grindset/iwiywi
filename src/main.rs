@@ -8,7 +8,6 @@ mod tui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use chrono::Datelike;
 
 #[derive(Parser)]
 #[command(
@@ -48,46 +47,16 @@ async fn main() -> Result<()> {
                 println!("No readings for today — fetching...");
                 fetch::run(&cfg).await?;
             }
-            // Best-effort background fetches. Each returns Option<...>; any
-            // failure just drops the contribution for today — nothing blocks
-            // startup, nothing fails the TUI.
-            //
-            // Grapevine + Reddit run in parallel since both are HTTP fetches
-            // to unrelated origins. Then Bill / Community / Summary run in
-            // parallel since all three hit the AI gateway and are independent
-            // — if they all miss cache, running them sequentially would add
-            // ~10s to startup on a cold day.
+            // Grapevine + Reddit are quick HTTP fetches with 5s timeouts;
+            // run them in parallel and move on. Bill / Community / Summary
+            // are AI calls — defer them into tui::run so the TUI appears
+            // immediately and the AI content streams in as it resolves.
             let (grapevine_html, reddit_json) = tokio::join!(
                 fetch_grapevine_html(),
                 fetch::reddit::fetch_community_json(),
             );
-
-            let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(12))
-                .build()
-                .ok();
-            let today = chrono::Local::now().date_naive();
-            let step_of_day = ((today.day() as u8).wrapping_sub(1) % 12) + 1;
-
-            let bill_dir = config::config_dir().join("bill");
-            let community_dir = config::config_dir().join("community");
-            let summary_dir = config::config_dir().join("ai_cache").join("summary");
-            let (bill, community, summary) = match client.as_ref() {
-                Some(c) => tokio::join!(
-                    pulse::bill::BillReflection::load_or_generate(&bill_dir, c, &cfg, today),
-                    pulse::community::CommunityPulse::load_or_curate(
-                        &community_dir, c, &cfg, today, reddit_json.as_deref(),
-                    ),
-                    pulse::summary::load_or_generate(&summary_dir, c, &cfg, today, step_of_day),
-                ),
-                None => (
-                    pulse::bill::BillReflection::empty(),
-                    pulse::community::CommunityPulse::empty(),
-                    None,
-                ),
-            };
-
-            crate::tui::run(grapevine_html, bill, community, summary)?;
+            let _ = &cfg; // cfg is passed to tui::run for the background AI.
+            crate::tui::run(grapevine_html, reddit_json, cfg)?;
         }
     }
     Ok(())

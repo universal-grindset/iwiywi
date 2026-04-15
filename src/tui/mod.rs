@@ -472,16 +472,91 @@ impl App {
     }
 }
 
+/// Indices of the Bill and Community sources within `sources` — we hold
+/// these so the background AI threads can swap them in once their
+/// results land without rebuilding the whole vec.
+const BILL_IDX: usize = 9;
+const COMMUNITY_IDX: usize = 10;
+
+/// One message per completed AI startup task. Delivered from background
+/// threads to the main loop via a shared mpsc channel.
+enum StartupAi {
+    Bill(Box<pulse::bill::BillReflection>),
+    Community(Box<pulse::community::CommunityPulse>),
+    Summary(String),
+}
+
+fn spawn_blocking<F>(body: F)
+where
+    F: FnOnce(&tokio::runtime::Runtime) + Send + 'static,
+{
+    std::thread::spawn(move || {
+        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+            body(&rt);
+        }
+    });
+}
+
+fn spawn_startup_bill(
+    client: reqwest::Client,
+    cfg: Config,
+    today: chrono::NaiveDate,
+    tx: mpsc::Sender<StartupAi>,
+) {
+    let cache_dir = config::config_dir().join("bill");
+    spawn_blocking(move |rt| {
+        let bill = rt.block_on(
+            pulse::bill::BillReflection::load_or_generate(&cache_dir, &client, &cfg, today),
+        );
+        let _ = tx.send(StartupAi::Bill(Box::new(bill)));
+    });
+}
+
+fn spawn_startup_community(
+    client: reqwest::Client,
+    cfg: Config,
+    today: chrono::NaiveDate,
+    reddit_json: Option<String>,
+    tx: mpsc::Sender<StartupAi>,
+) {
+    let cache_dir = config::config_dir().join("community");
+    spawn_blocking(move |rt| {
+        let community = rt.block_on(
+            pulse::community::CommunityPulse::load_or_curate(
+                &cache_dir, &client, &cfg, today, reddit_json.as_deref(),
+            ),
+        );
+        let _ = tx.send(StartupAi::Community(Box::new(community)));
+    });
+}
+
+fn spawn_startup_summary(
+    client: reqwest::Client,
+    cfg: Config,
+    today: chrono::NaiveDate,
+    step_of_day: u8,
+    tx: mpsc::Sender<StartupAi>,
+) {
+    let cache_dir = config::config_dir().join("ai_cache").join("summary");
+    spawn_blocking(move |rt| {
+        if let Some(line) = rt.block_on(
+            pulse::summary::load_or_generate(&cache_dir, &client, &cfg, today, step_of_day),
+        ) {
+            let _ = tx.send(StartupAi::Summary(line));
+        }
+    });
+}
+
 pub fn run(
     grapevine_html: Option<String>,
-    bill: pulse::bill::BillReflection,
-    community: pulse::community::CommunityPulse,
-    daily_summary: Option<String>,
+    reddit_json: Option<String>,
+    cfg: Config,
 ) -> Result<()> {
-    let cfg = config::load_config()?;
     let readings = read_readings()?;
 
     let today_basename = format!("readings-{}.json", chrono::Local::now().format("%Y-%m-%d"));
+    // Bill + Community start as empty placeholders; background threads
+    // below will swap them in as their gateway calls complete.
     let sources: Vec<Box<dyn PulseSource>> = vec![
         Box::new(pulse::today::TodayReadings::from_readings(&readings)),
         Box::new(pulse::historical::HistoricalReadings::load_from(
@@ -494,8 +569,8 @@ pub fn run(
         Box::new(pulse::bundled::Concepts::load()),
         Box::new(pulse::bundled::Slogans::load()),
         Box::new(pulse::grapevine::Grapevine::from_html(grapevine_html.as_deref())),
-        Box::new(bill),
-        Box::new(community),
+        Box::new(pulse::bill::BillReflection::empty()),
+        Box::new(pulse::community::CommunityPulse::empty()),
         Box::new(pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         )),
@@ -507,7 +582,6 @@ pub fn run(
     let pattern = pattern::from_env();
     let text_size = text_size::from_env();
     let pulse_secs = config::pulse_secs();
-    let _ = cfg;
 
     let mut mixer = PulseMixer::from_sources_focused(&sources, None, order, focus);
     // Start on a random item so the first thing you see isn't always today's
@@ -541,11 +615,9 @@ pub fn run(
         None
     };
 
-    // Seed the toast with the AI-generated daily summary (if we got one)
-    // so it's visible for ~4s on first render — long enough to read.
-    let initial_toast = daily_summary.map(|s| {
-        (s, Instant::now(), Duration::from_secs(4))
-    });
+    // Daily-summary toast arrives via startup_rx later (see below) since
+    // it's an AI call that may take a few seconds on cold cache.
+    let initial_toast = None;
 
     let mut app = App {
         mixer,
@@ -581,6 +653,20 @@ pub fn run(
         last_input: Instant::now(),
         palette_auto: palette::auto_requested(),
     };
+
+    // Spawn background AI tasks. Each runs on its own thread with a fresh
+    // tokio runtime. Results arrive via `startup_rx` which the main loop
+    // polls every iteration — no blocking, TUI is already interactive.
+    let (startup_tx, startup_rx) = mpsc::channel::<StartupAi>();
+    if let Some(client) = app.ai_client.clone() {
+        let today = chrono::Local::now().date_naive();
+        let step_of_day = ((chrono::Datelike::day(&today) as u8).wrapping_sub(1) % 12) + 1;
+        spawn_startup_bill(client.clone(), cfg.clone(), today, startup_tx.clone());
+        spawn_startup_community(
+            client.clone(), cfg.clone(), today, reddit_json, startup_tx.clone(),
+        );
+        spawn_startup_summary(client, cfg.clone(), today, step_of_day, startup_tx);
+    }
 
     loop {
         let size = terminal.size()?;
@@ -655,12 +741,39 @@ pub fn run(
         // Apply any completed AI call to the open overlay.
         app.poll_ai();
 
-        if event::poll(Duration::from_millis(50))? {
+        // Drain any completed startup AI tasks (Bill / Community / Summary).
+        while let Ok(msg) = startup_rx.try_recv() {
+            match msg {
+                StartupAi::Bill(b) => {
+                    if !b.items().is_empty() {
+                        app.sources[BILL_IDX] = b;
+                        app.rebuild_mixer();
+                    }
+                }
+                StartupAi::Community(c) => {
+                    if !c.items().is_empty() {
+                        app.sources[COMMUNITY_IDX] = c;
+                        app.rebuild_mixer();
+                    }
+                }
+                StartupAi::Summary(s) => {
+                    app.toast = Some((s, Instant::now(), Duration::from_secs(5)));
+                }
+            }
+        }
+
+        // Poll slower when nothing's animating. 80ms = ~12 fps for drift,
+        // 200ms = 5 fps for static patterns. Halves idle CPU without any
+        // perceptible input lag.
+        let poll_ms = if app.pattern.is_animated() { 80 } else { 200 };
+        if event::poll(Duration::from_millis(poll_ms))? {
             let ev = event::read()?;
             if let Event::Mouse(MouseEvent { kind, .. }) = ev {
-                // Any mouse activity wakes idle dim-down.
-                app.last_input = Instant::now();
                 if let MouseEventKind::Down(MouseButton::Left) = kind {
+                    // Only clicks reset the idle timer — mouse-move events
+                    // would otherwise keep the UI awake forever just because
+                    // the cursor drifted over the window.
+                    app.last_input = Instant::now();
                     // Clicks close overlays first; otherwise they copy the
                     // current pulse item. Menus are mouse-dismissable too.
                     if app.help_open {
