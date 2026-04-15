@@ -427,53 +427,61 @@ pub fn run() -> Result<()> {
         terminal.draw(|f| widgets::render(f, &app))?;
 
         if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind != crossterm::event::KeyEventKind::Press {
-                    continue;
+            match event::read()? {
+                Event::Resize(w, h) => {
+                    if let Some(state) = app.drift.as_mut() {
+                        state.resize(w, h);
+                    }
                 }
-                app.register_input();
-                match &app.mode {
-                    Mode::Normal => match key.code {
-                        KeyCode::Char('q') => break,
-                        KeyCode::Char('a') => app.set_tab(Tab::All),
-                        KeyCode::Char('s') => app.set_tab(Tab::Steps),
-                        KeyCode::Char('?') => app.set_tab(Tab::Help),
-                        KeyCode::Tab => app.next_tab(),
-                        KeyCode::BackTab => app.prev_tab(),
-                        KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
-                        KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
-                        KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
-                        KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
-                        KeyCode::Char('/') => app.enter_command_mode(),
-                        _ => {}
-                    },
-                    Mode::Command(_) => match key.code {
-                        KeyCode::Esc => app.dismiss(),
-                        KeyCode::Enter => {
-                            let cmd = if let Mode::Command(s) = &app.mode {
-                                s.clone()
-                            } else {
-                                String::new()
-                            };
-                            app.dismiss();
-                            match handle_command(&cmd) {
-                                Action::ToggleQr => app.toggle_qr(),
-                                Action::Unknown => {}
+                Event::Key(key) => {
+                    if key.kind != crossterm::event::KeyEventKind::Press {
+                        continue;
+                    }
+                    app.register_input();
+                    match &app.mode {
+                        Mode::Normal => match key.code {
+                            KeyCode::Char('q') => break,
+                            KeyCode::Char('a') => app.set_tab(Tab::All),
+                            KeyCode::Char('s') => app.set_tab(Tab::Steps),
+                            KeyCode::Char('?') => app.set_tab(Tab::Help),
+                            KeyCode::Tab => app.next_tab(),
+                            KeyCode::BackTab => app.prev_tab(),
+                            KeyCode::Left if app.tab == Tab::Steps => app.step_prev(),
+                            KeyCode::Right if app.tab == Tab::Steps => app.step_next(),
+                            KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
+                            KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
+                            KeyCode::Char('/') => app.enter_command_mode(),
+                            _ => {}
+                        },
+                        Mode::Command(_) => match key.code {
+                            KeyCode::Esc => app.dismiss(),
+                            KeyCode::Enter => {
+                                let cmd = if let Mode::Command(s) = &app.mode {
+                                    s.clone()
+                                } else {
+                                    String::new()
+                                };
+                                app.dismiss();
+                                match handle_command(&cmd) {
+                                    Action::ToggleQr => app.toggle_qr(),
+                                    Action::Unknown => {}
+                                }
                             }
+                            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                app.push_command_char(c);
+                            }
+                            KeyCode::Backspace => app.pop_command_char(),
+                            _ => {}
+                        },
+                        Mode::QrOverlay => {
+                            app.dismiss();
                         }
-                        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            app.push_command_char(c);
+                        Mode::Drift => {
+                            // register_input already exited Drift; nothing else to do.
                         }
-                        KeyCode::Backspace => app.pop_command_char(),
-                        _ => {}
-                    },
-                    Mode::QrOverlay => {
-                        app.dismiss();
-                    }
-                    Mode::Drift => {
-                        // register_input already exited Drift; nothing else to do.
                     }
                 }
+                _ => {}
             }
         } else {
             app.maybe_enter_drift(size.width, size.height);
