@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod drift;
 pub mod qr;
 pub mod theme;
 pub mod widgets;
