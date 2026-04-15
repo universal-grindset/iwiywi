@@ -59,7 +59,7 @@ export IWIYWI_THEME=auto         # light | dark | auto
 export IWIYWI_PALETTE=default    # default warm cool mono sunset sage dawn dusk
 
 # Visual
-export IWIYWI_PATTERN=none       # none dots frame rule
+export IWIYWI_PATTERN=drift      # drift (default) none dots frame rule
 
 # Cycling
 export IWIYWI_ORDER=random       # random sequential by-step by-source

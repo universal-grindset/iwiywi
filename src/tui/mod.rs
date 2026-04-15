@@ -1,3 +1,4 @@
+pub mod drift;
 pub mod palette;
 pub mod pattern;
 pub mod widgets;
@@ -26,6 +27,9 @@ pub struct App {
     pub pulse_secs: Option<Duration>,
     pub last_advance: Instant,
     pub seed_counter: u32,
+    /// Live particle state for the `Drift` pattern. `None` for any other
+    /// pattern choice. Ticked on each idle poll in the event loop.
+    pub drift: Option<drift::DriftState>,
 }
 
 impl App {
@@ -102,6 +106,28 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
 
     let mixer = PulseMixer::from_sources(&sources, None, order);
 
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // Seed the drift particle field from the initial terminal size if the
+    // chosen pattern is Drift. Other patterns leave `drift` as None.
+    let initial_size = terminal.size()?;
+    let drift = if pattern == pattern::Pattern::Drift {
+        Some(drift::DriftState::new(
+            initial_size.width,
+            initial_size.height,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(1),
+        ))
+    } else {
+        None
+    };
+
     let mut app = App {
         mixer,
         sources,
@@ -112,16 +138,12 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
         pulse_secs,
         last_advance: Instant::now(),
         seed_counter: 1,
+        drift,
     };
 
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
     loop {
-        terminal.draw(|f| widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern))?;
+        let size = terminal.size()?;
+        terminal.draw(|f| widgets::render_pulse(f, app.mixer.current(), &app.palette, app.pattern, app.drift.as_ref()))?;
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
@@ -147,9 +169,14 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                     _ => {}
                 }
             }
-        } else if let Some(interval) = app.pulse_secs {
-            if app.last_advance.elapsed() >= interval {
-                app.next();
+        } else {
+            if let Some(state) = app.drift.as_mut() {
+                state.tick(size.width, size.height);
+            }
+            if let Some(interval) = app.pulse_secs {
+                if app.last_advance.elapsed() >= interval {
+                    app.next();
+                }
             }
         }
     }
@@ -190,6 +217,7 @@ mod tests {
             pulse_secs: Some(Duration::from_secs(20)),
             last_advance: Instant::now(),
             seed_counter: 1,
+            drift: None,
         }
     }
 

@@ -16,15 +16,18 @@ pub enum Pattern {
     Dots,
     Frame,
     Rule,
+    Drift,
 }
 
 impl Pattern {
     pub fn parse(raw: Option<&str>) -> Pattern {
         match raw {
+            Some("none")  => Pattern::None,
             Some("dots")  => Pattern::Dots,
             Some("frame") => Pattern::Frame,
             Some("rule")  => Pattern::Rule,
-            _ => Pattern::None,
+            // Default when unset or unrecognized: drift (the swirly pretties).
+            _ => Pattern::Drift,
         }
     }
 }
@@ -38,7 +41,9 @@ pub fn from_env() -> Pattern {
 /// use it to position elements relative to the text.
 pub fn draw(buf: &mut Buffer, area: Rect, text_rect: Rect, palette: &Palette, pattern: Pattern) {
     match pattern {
-        Pattern::None => {}
+        // `Drift` is animated and needs `DriftState` that lives on `App`,
+        // so it's rendered directly from `widgets::render_pulse` — not here.
+        Pattern::None | Pattern::Drift => {}
         Pattern::Dots => draw_dots(buf, area, palette),
         Pattern::Frame => draw_frame(buf, text_rect, palette),
         Pattern::Rule => draw_rule(buf, text_rect, palette),
@@ -88,15 +93,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pattern_parse_defaults_to_none() {
-        assert_eq!(Pattern::parse(None), Pattern::None);
-        assert_eq!(Pattern::parse(Some("garbage")), Pattern::None);
+    fn pattern_parse_defaults_to_drift() {
+        assert_eq!(Pattern::parse(None), Pattern::Drift);
+        assert_eq!(Pattern::parse(Some("garbage")), Pattern::Drift);
     }
 
     #[test]
     fn pattern_parse_each() {
+        assert_eq!(Pattern::parse(Some("none")), Pattern::None);
         assert_eq!(Pattern::parse(Some("dots")), Pattern::Dots);
         assert_eq!(Pattern::parse(Some("frame")), Pattern::Frame);
         assert_eq!(Pattern::parse(Some("rule")), Pattern::Rule);
+        assert_eq!(Pattern::parse(Some("drift")), Pattern::Drift);
     }
 }

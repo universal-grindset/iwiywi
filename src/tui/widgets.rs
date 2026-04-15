@@ -7,10 +7,17 @@ use ratatui::{
 };
 
 use crate::pulse::PulseItem;
+use crate::tui::drift::{self, DriftState};
 use crate::tui::palette::Palette;
 use crate::tui::pattern::{self, Pattern};
 
-pub fn render_pulse(frame: &mut Frame, item: Option<&PulseItem>, palette: &Palette, pattern: Pattern) {
+pub fn render_pulse(
+    frame: &mut Frame,
+    item: Option<&PulseItem>,
+    palette: &Palette,
+    pattern: Pattern,
+    drift_state: Option<&DriftState>,
+) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
@@ -25,7 +32,14 @@ pub fn render_pulse(frame: &mut Frame, item: Option<&PulseItem>, palette: &Palet
     let y = area.y + (area.height.saturating_sub(total_height)) / 2;
     let text_rect = Rect { x, y, width, height: total_height };
 
+    // Static patterns (none/dots/frame/rule) draw here. Drift is animated
+    // and needs live state; it draws below when present.
     pattern::draw(buf, area, text_rect, palette, pattern);
+    if pattern == Pattern::Drift {
+        if let Some(state) = drift_state {
+            drift::draw(buf, area, state, palette);
+        }
+    }
 
     let label = Line::from(Span::styled(
         item.label.clone(),

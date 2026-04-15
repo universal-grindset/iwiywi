@@ -22,6 +22,7 @@ ratatui = "0.28"
 crossterm = "0.28"
 dirs = "5"
 sha2 = "0.10"
+noise = "0.9"
 
 [dev-dependencies]
 mockito = "1"
