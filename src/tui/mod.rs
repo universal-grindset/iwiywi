@@ -2,6 +2,7 @@ pub mod clipboard;
 pub mod drift;
 pub mod export;
 pub mod help;
+pub mod journal;
 pub mod menu;
 pub mod palette;
 pub mod pattern;
@@ -361,6 +362,18 @@ pub fn run(grapevine_html: Option<String>) -> Result<()> {
                     KeyCode::Char('f') => app.toggle_favorite(),
                     KeyCode::Char('c') => app.copy_current(),
                     KeyCode::Char('e') => app.export_current(),
+                    KeyCode::Char('j') => {
+                        let dir = config::config_dir().join("journal");
+                        match journal::open_today(dir) {
+                            Ok(p) => app.toast = Some((
+                                format!("wrote {}", p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")),
+                                Instant::now(),
+                            )),
+                            Err(e) => app.toast = Some((format!("journal: {e}"), Instant::now())),
+                        }
+                        // Force a full redraw now that we're back from the editor.
+                        terminal.clear()?;
+                    }
                     KeyCode::Char('1') => app.set_step_focus(1),
                     KeyCode::Char('2') => app.set_step_focus(2),
                     KeyCode::Char('3') => app.set_step_focus(3),

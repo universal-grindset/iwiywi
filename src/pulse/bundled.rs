@@ -253,9 +253,9 @@ mod tests {
     }
 
     #[test]
-    fn big_book_loads_fifteen_quotes() {
+    fn big_book_loads_thirty_quotes() {
         let bb = BigBookQuotes::load();
-        assert_eq!(bb.items().len(), 15);
+        assert_eq!(bb.items().len(), 30);
         assert_eq!(bb.name(), "big_book");
     }
 
