@@ -1,0 +1,4 @@
+# Mark web assets as generated so GitHub shows the repo as 100% Rust.
+src/web/*.html linguist-generated=true
+src/web/*.css  linguist-generated=true
+src/web/*.js   linguist-generated=true

@@ -127,19 +127,25 @@ fn right_text(status: &StatusLine) -> String {
 /// Top-left ambient anchor: weather one-liner from wttr.in. Paired
 /// visually with the moon/sober anchor in the top-right. Renders only
 /// when wttr.in returned something and the viewport has room.
+/// Top-left ambient anchor: today's date + optional weather. Always shows
+/// the date (e.g. "Tue, Apr 15"); weather appends when wttr.in returned.
 pub fn draw_weather_anchor(
     buf: &mut Buffer,
     area: Rect,
     palette: &Palette,
     weather: Option<&WeatherSnapshot>,
 ) {
-    let Some(w) = weather else { return; };
     if area.width < 30 || area.height < 2 { return; }
-    let text_w = w.text.chars().count() as u16 + 2;
+    let date = chrono::Local::now().format("%a, %b %-d").to_string();
+    let text = match weather {
+        Some(w) => format!("{date}  ·  {}", w.text),
+        None => date,
+    };
+    let text_w = text.chars().count() as u16 + 2;
     if area.width < text_w + 2 { return; }
     let rect = Rect { x: area.x + 1, y: area.y, width: text_w, height: 1 };
     Paragraph::new(Line::from(Span::styled(
-        w.text.clone(),
+        text,
         Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
     )))
     .render(rect, buf);
