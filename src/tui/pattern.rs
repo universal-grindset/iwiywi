@@ -20,6 +20,7 @@ pub enum Pattern {
     Wave,
     Snow,
     Rain,
+    Words,
     // Minimal static patterns.
     Grid,
     Corners,
@@ -29,8 +30,9 @@ pub enum Pattern {
 }
 
 impl Pattern {
-    pub const ALL: [Pattern; 13] = [
+    pub const ALL: [Pattern; 14] = [
         Pattern::Drift, Pattern::Wave, Pattern::Snow, Pattern::Rain,
+        Pattern::Words,
         Pattern::None, Pattern::Dots, Pattern::Frame, Pattern::Rule,
         Pattern::Grid, Pattern::Corners, Pattern::Dashes, Pattern::Vignette,
         Pattern::Margin,
@@ -49,8 +51,8 @@ impl Pattern {
             Some("corners")  => Pattern::Corners,
             Some("dashes")   => Pattern::Dashes,
             Some("vignette") => Pattern::Vignette,
+            Some("words")    => Pattern::Words,
             Some("margin")   => Pattern::Margin,
-            // Default when unset or unrecognized: drift (the swirly pretties).
             _ => Pattern::Drift,
         }
     }
@@ -69,13 +71,14 @@ impl Pattern {
             Pattern::Corners  => "corners",
             Pattern::Dashes   => "dashes",
             Pattern::Vignette => "vignette",
+            Pattern::Words    => "words",
             Pattern::Margin   => "margin",
         }
     }
 
     /// True for patterns that need an animated DriftState.
     pub fn is_animated(&self) -> bool {
-        matches!(self, Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain)
+        matches!(self, Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain | Pattern::Words)
     }
 
     /// The drift::Mode each animated pattern uses. Non-animated patterns
@@ -86,6 +89,7 @@ impl Pattern {
             Pattern::Wave => Mode::Wave,
             Pattern::Snow => Mode::Snow,
             Pattern::Rain => Mode::Rain,
+            Pattern::Words => Mode::Words,
             _ => Mode::Drift,
         }
     }
@@ -112,7 +116,7 @@ pub fn draw(
     match pattern {
         // Animated patterns (drift/wave/snow/rain) draw directly from
         // `widgets::render_pulse` via the shared DriftState — not here.
-        Pattern::None | Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain => {}
+        Pattern::None | Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain | Pattern::Words => {}
         Pattern::Dots     => draw_dots(buf, area, palette),
         Pattern::Frame    => draw_frame(buf, text_rect, tint),
         Pattern::Rule     => draw_rule(buf, text_rect, tint),
@@ -293,7 +297,7 @@ mod tests {
 
     #[test]
     fn all_patterns_covers_enum() {
-        assert_eq!(Pattern::ALL.len(), 13);
+        assert_eq!(Pattern::ALL.len(), 14);
     }
 
     #[test]
@@ -301,7 +305,7 @@ mod tests {
         for p in Pattern::ALL {
             let animated = p.is_animated();
             let expected = matches!(p,
-                Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain);
+                Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain | Pattern::Words);
             assert_eq!(animated, expected,
                 "is_animated disagrees for {}", p.label());
         }

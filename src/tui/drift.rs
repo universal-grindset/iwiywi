@@ -30,7 +30,14 @@ pub enum Mode {
     Wave,
     Snow,
     Rain,
+    Words,
 }
+
+const VOCABULARY: [&str; 12] = [
+    "SURRENDER", "WILLINGNESS", "HOPE", "FAITH",
+    "SERVICE", "GRATITUDE", "PATIENCE", "HUMILITY",
+    "COURAGE", "HONESTY", "ACCEPTANCE", "SERENITY",
+];
 
 pub struct Particle {
     pub x: f32,
@@ -123,6 +130,12 @@ impl DriftState {
                     // Fast, essentially vertical.
                     (0.0, 1.6)
                 }
+                Mode::Words => {
+                    // Gentle vertical fall like snow, but the draw function
+                    // renders word letters instead of dot glyphs.
+                    let sway = ((t * 0.3 + idx as f64 * 1.1).sin() * 0.15) as f32;
+                    (sway, 0.5)
+                }
             };
 
             p.x = wrap(p.x + vx, width as f32);
@@ -140,13 +153,27 @@ pub fn draw(buf: &mut Buffer, area: Rect, state: &DriftState, palette: &Palette)
     if area.width < 40 || area.height < 15 { return; }
     let bright_style = Style::default().fg(palette.accent);
     let dim_style = Style::default().fg(palette.muted);
-    for p in &state.particles {
+    let is_words = state.mode == Mode::Words;
+    for (pidx, p) in state.particles.iter().enumerate() {
+        let word = if is_words {
+            VOCABULARY[pidx % VOCABULARY.len()]
+        } else {
+            ""
+        };
+        let word_bytes: Vec<char> = word.chars().collect();
         for (i, pos) in p.trail.iter().enumerate().rev() {
             if let Some((x, y)) = pos {
                 if *x < area.width && *y < area.height {
                     let style = if i < 2 { bright_style } else { dim_style };
+                    let sym = if is_words && !word_bytes.is_empty() {
+                        let ci = (pidx + i) % word_bytes.len();
+                        let mut tmp = [0u8; 4];
+                        word_bytes[ci].encode_utf8(&mut tmp).to_string()
+                    } else {
+                        TRAIL_CHARS[i].to_string()
+                    };
                     buf[(area.x + *x, area.y + *y)]
-                        .set_symbol(TRAIL_CHARS[i])
+                        .set_symbol(&sym)
                         .set_style(style);
                 }
             }
