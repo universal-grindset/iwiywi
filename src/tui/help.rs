@@ -54,7 +54,7 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("f", "favorite / unfavorite"),
         ("c / click", "copy current item"),
         ("e", "export today"),
-        ("j", "journal (AI-seeded prompt + $EDITOR)"),
+        ("j / J", "journal today / browse past entries"),
         ("?", "this help"),
         ("q", "quit"),
     ];

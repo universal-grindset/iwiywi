@@ -3,7 +3,9 @@ pub mod drift;
 pub mod export;
 pub mod help;
 pub mod journal;
+pub mod journal_browser;
 pub mod menu;
+pub mod milestones;
 pub mod moon;
 pub mod overlay;
 pub mod palette;
@@ -684,6 +686,22 @@ impl App {
                 }
                 self.need_clear = true;
             }
+            KeyCode::Char('J') => {
+                let dir = config::config_dir().join("journal");
+                let entries = journal_browser::list_entries(&dir);
+                if entries.is_empty() {
+                    self.set_toast("no journal entries yet", 2000);
+                } else {
+                    let body = entries
+                        .iter()
+                        .map(|e| format!("{}  {}", e.filename.trim_end_matches(".md"), e.preview))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let mut ov = overlay::AiOverlay::loading("Journal entries");
+                    ov.apply_outcome(overlay::AiOutcome::Text(body));
+                    self.ai_overlay = Some(ov);
+                }
+            }
             KeyCode::Char('1') => self.handle_step_key(1),
             KeyCode::Char('2') => self.handle_step_key(2),
             KeyCode::Char('3') => self.handle_step_key(3),
@@ -1031,7 +1049,9 @@ pub async fn run(
         favorites: pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         ),
-        toast: None,
+        toast: milestones::check(config::sobriety_days()).map(|msg| {
+            (msg.to_string(), Instant::now(), Duration::from_secs(8))
+        }),
         ai_overlay: None,
         ai_tx,
         should_quit: false,
