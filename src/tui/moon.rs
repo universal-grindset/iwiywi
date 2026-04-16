@@ -46,7 +46,10 @@ pub fn phase_glyph(idx: u8) -> &'static str {
     }
 }
 
-#[allow(dead_code, reason = "ASCII fallback kept for terminals that don't render Unicode moon glyphs")]
+#[allow(
+    dead_code,
+    reason = "ASCII fallback kept for terminals that don't render Unicode moon glyphs"
+)]
 pub fn phase_ascii(idx: u8) -> &'static str {
     match idx % 8 {
         0 => "( )",
@@ -74,19 +77,28 @@ pub fn phase_name(idx: u8) -> &'static str {
 }
 
 /// For today's date with local timezone.
-#[allow(dead_code, reason = "convenience accessor; status uses phase_index directly")]
+#[allow(
+    dead_code,
+    reason = "convenience accessor; status uses phase_index directly"
+)]
 pub fn today() -> u8 {
     phase_index(chrono::Local::now().date_naive())
 }
 
 /// Day-of-week + phase combo for the corner. Returns `"Fri · 🌕 full"`.
-#[allow(dead_code, reason = "convenience formatter; status uses individual pieces")]
+#[allow(
+    dead_code,
+    reason = "convenience formatter; status uses individual pieces"
+)]
 pub fn short_label(date: NaiveDate) -> String {
     let idx = phase_index(date);
     let dow = match date.weekday() {
-        chrono::Weekday::Mon => "Mon", chrono::Weekday::Tue => "Tue",
-        chrono::Weekday::Wed => "Wed", chrono::Weekday::Thu => "Thu",
-        chrono::Weekday::Fri => "Fri", chrono::Weekday::Sat => "Sat",
+        chrono::Weekday::Mon => "Mon",
+        chrono::Weekday::Tue => "Tue",
+        chrono::Weekday::Wed => "Wed",
+        chrono::Weekday::Thu => "Thu",
+        chrono::Weekday::Fri => "Fri",
+        chrono::Weekday::Sat => "Sat",
         chrono::Weekday::Sun => "Sun",
     };
     format!("{dow} · {} {}", phase_glyph(idx), phase_name(idx))
@@ -111,8 +123,10 @@ mod tests {
             let da = phase_index(a);
             let db = phase_index(b);
             let diff = db.wrapping_sub(da) % 8;
-            assert!(diff <= 1 || diff == 0 || diff == 7,
-                "phase jumped from {da} to {db} in one day");
+            assert!(
+                diff <= 1 || diff == 0 || diff == 7,
+                "phase jumped from {da} to {db} in one day"
+            );
         }
     }
 

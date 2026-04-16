@@ -32,11 +32,7 @@ fn trim_boilerplate(text: &str) -> String {
             // single-line content, back up to the last sentence terminator
             // before the marker so we drop any partial pre-marker words.
             let cut = out[..idx].rfind('\n').map_or_else(
-                || {
-                    out[..idx]
-                        .rfind(['.', '!', '?'])
-                        .map_or(idx, |p| p + 1)
-                },
+                || out[..idx].rfind(['.', '!', '?']).map_or(idx, |p| p + 1),
                 |p| p + 1,
             );
             out.truncate(cut);
@@ -134,11 +130,21 @@ pub async fn scrape_all(client: &Client, config: &crate::config::Config) -> Vec<
         };
         let html = match resp {
             Some(h) if !h.trim().is_empty() => h,
-            _ => { eprintln!("warn: wayback empty for {key}"); continue; }
+            _ => {
+                eprintln!("warn: wayback empty for {key}");
+                continue;
+            }
         };
         match crate::fetch::ai_extract::extract_reading(
-            client, config, &html, source_label, title_label, live_url,
-        ).await {
+            client,
+            config,
+            &html,
+            source_label,
+            title_label,
+            live_url,
+        )
+        .await
+        {
             Ok(r) => results.push(r),
             Err(e) => eprintln!("warn: AI extract failed for {key}: {e}"),
         }
@@ -262,7 +268,6 @@ pub fn parse_aa_big_book(html: &str) -> Option<RawReading> {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,5 +390,4 @@ mod tests {
         assert!(!cleaned.contains("official Website"));
         assert!(!cleaned.contains("All rights reserved"));
     }
-
 }

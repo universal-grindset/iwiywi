@@ -139,7 +139,10 @@ mod tests {
 
     #[test]
     fn parse_pulse_secs_defaults_when_none() {
-        assert_eq!(parse_pulse_secs(None), Some(std::time::Duration::from_secs(45)));
+        assert_eq!(
+            parse_pulse_secs(None),
+            Some(std::time::Duration::from_secs(45))
+        );
     }
 
     #[test]
@@ -149,11 +152,17 @@ mod tests {
 
     #[test]
     fn parse_pulse_secs_parses_positive_value() {
-        assert_eq!(parse_pulse_secs(Some("45")), Some(std::time::Duration::from_secs(45)));
+        assert_eq!(
+            parse_pulse_secs(Some("45")),
+            Some(std::time::Duration::from_secs(45))
+        );
     }
 
     #[test]
     fn parse_pulse_secs_falls_back_on_garbage() {
-        assert_eq!(parse_pulse_secs(Some("xx")), Some(std::time::Duration::from_secs(45)));
+        assert_eq!(
+            parse_pulse_secs(Some("xx")),
+            Some(std::time::Duration::from_secs(45))
+        );
     }
 }

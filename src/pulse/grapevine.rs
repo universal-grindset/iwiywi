@@ -8,7 +8,9 @@ use scraper::{Html, Selector};
 const FALLBACK_JSON: &str = include_str!("data/grapevine_fallback.json");
 const LIVE_URL: &str = "https://www.aagrapevine.org/quote-day";
 
-pub struct Grapevine { items: Vec<PulseItem> }
+pub struct Grapevine {
+    items: Vec<PulseItem>,
+}
 
 impl Grapevine {
     /// Construct from a pre-fetched HTML body. Caller is responsible for the
@@ -40,12 +42,18 @@ impl Grapevine {
         Self { items }
     }
 
-    pub fn live_url() -> &'static str { LIVE_URL }
+    pub fn live_url() -> &'static str {
+        LIVE_URL
+    }
 }
 
 impl PulseSource for Grapevine {
-    fn name(&self) -> &'static str { "grapevine" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "grapevine"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 fn parse_quote(html: &str) -> Option<String> {

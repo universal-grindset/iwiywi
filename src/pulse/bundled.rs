@@ -37,8 +37,12 @@ impl Prayers {
 }
 
 impl PulseSource for Prayers {
-    fn name(&self) -> &'static str { "prayers" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "prayers"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 const STEPS_JSON: &str = include_str!("data/step_explainers.json");
@@ -79,8 +83,12 @@ impl StepExplainers {
 }
 
 impl PulseSource for StepExplainers {
-    fn name(&self) -> &'static str { "step_explainers" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "step_explainers"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 const BIG_BOOK_JSON: &str = include_str!("data/big_book.json");
@@ -114,8 +122,12 @@ impl BigBookQuotes {
 }
 
 impl PulseSource for BigBookQuotes {
-    fn name(&self) -> &'static str { "big_book" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "big_book"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 const TRADITIONS_JSON: &str = include_str!("data/traditions.json");
@@ -148,57 +160,82 @@ impl Traditions {
 }
 
 impl PulseSource for Traditions {
-    fn name(&self) -> &'static str { "traditions" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "traditions"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 const CONCEPTS_JSON: &str = include_str!("data/concepts.json");
 
 #[derive(serde::Deserialize)]
-struct ConceptEntry { n: u8, body: String }
+struct ConceptEntry {
+    n: u8,
+    body: String,
+}
 
-pub struct Concepts { items: Vec<PulseItem> }
+pub struct Concepts {
+    items: Vec<PulseItem>,
+}
 
 impl Concepts {
     pub fn load() -> Self {
         let entries: Vec<ConceptEntry> =
             serde_json::from_str(CONCEPTS_JSON).expect("concepts.json malformed");
-        let items = entries.into_iter().map(|e| PulseItem {
-            kind: PulseKind::Concept,
-            step: None,
-            label: format!("Concept {} for World Service", e.n),
-            body: e.body,
-        }).collect();
+        let items = entries
+            .into_iter()
+            .map(|e| PulseItem {
+                kind: PulseKind::Concept,
+                step: None,
+                label: format!("Concept {} for World Service", e.n),
+                body: e.body,
+            })
+            .collect();
         Self { items }
     }
 }
 
 impl PulseSource for Concepts {
-    fn name(&self) -> &'static str { "concepts" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "concepts"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 const SLOGANS_JSON: &str = include_str!("data/slogans.json");
 
-pub struct Slogans { items: Vec<PulseItem> }
+pub struct Slogans {
+    items: Vec<PulseItem>,
+}
 
 impl Slogans {
     pub fn load() -> Self {
         let entries: Vec<String> =
             serde_json::from_str(SLOGANS_JSON).expect("slogans.json malformed");
-        let items = entries.into_iter().map(|s| PulseItem {
-            kind: PulseKind::Slogan,
-            step: None,
-            label: "Slogan".to_string(),
-            body: s,
-        }).collect();
+        let items = entries
+            .into_iter()
+            .map(|s| PulseItem {
+                kind: PulseKind::Slogan,
+                step: None,
+                label: "Slogan".to_string(),
+                body: s,
+            })
+            .collect();
         Self { items }
     }
 }
 
 impl PulseSource for Slogans {
-    fn name(&self) -> &'static str { "slogans" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "slogans"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 #[cfg(test)]
@@ -248,7 +285,11 @@ mod tests {
     #[test]
     fn step_one_principle_is_honesty() {
         let s = StepExplainers::load();
-        let principle = s.items().iter().find(|i| i.step == Some(1) && i.kind == PulseKind::Principle).unwrap();
+        let principle = s
+            .items()
+            .iter()
+            .find(|i| i.step == Some(1) && i.kind == PulseKind::Principle)
+            .unwrap();
         assert!(principle.label.contains("Honesty"));
     }
 

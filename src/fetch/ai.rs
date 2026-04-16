@@ -66,12 +66,20 @@ pub async fn post_chat(
     let request = ChatRequest {
         model: &config.ai.model,
         messages: vec![
-            Message { role: "system", content: system },
-            Message { role: "user",   content: user },
+            Message {
+                role: "system",
+                content: system,
+            },
+            Message {
+                role: "user",
+                content: user,
+            },
         ],
         max_tokens: opts.max_tokens,
         temperature: opts.temperature,
-        response_format: opts.json_mode.then_some(ResponseFormat { r#type: "json_object" }),
+        response_format: opts.json_mode.then_some(ResponseFormat {
+            r#type: "json_object",
+        }),
     };
 
     let endpoint = match &config.ai.api_version {

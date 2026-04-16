@@ -50,12 +50,16 @@ pub struct CommunityPulse {
 }
 
 impl CommunityPulse {
-    pub fn empty() -> Self { Self { items: Vec::new() } }
+    pub fn empty() -> Self {
+        Self { items: Vec::new() }
+    }
 
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn load_from(cache_dir: &Path, today: NaiveDate) -> Self {
         match read_cached(cache_dir, today) {
-            Some(file) => Self { items: file.items.iter().map(build_item).collect() },
+            Some(file) => Self {
+                items: file.items.iter().map(build_item).collect(),
+            },
             None => Self::empty(),
         }
     }
@@ -71,16 +75,27 @@ impl CommunityPulse {
         raw_json: Option<&str>,
     ) -> Self {
         if let Some(file) = read_cached(cache_dir, today) {
-            return Self { items: file.items.iter().map(build_item).collect() };
+            return Self {
+                items: file.items.iter().map(build_item).collect(),
+            };
         }
-        let Some(raw) = raw_json else { return Self::empty(); };
+        let Some(raw) = raw_json else {
+            return Self::empty();
+        };
         let excerpts = extract_post_excerpts(raw);
-        if excerpts.is_empty() { return Self::empty(); }
+        if excerpts.is_empty() {
+            return Self::empty();
+        }
         match curate(client, config, &excerpts).await {
             Ok(items) => {
-                let file = CacheFile { date: today.to_string(), items: items.clone() };
+                let file = CacheFile {
+                    date: today.to_string(),
+                    items: items.clone(),
+                };
                 let _ = write_cache(cache_dir, today, &file);
-                Self { items: items.iter().map(build_item).collect() }
+                Self {
+                    items: items.iter().map(build_item).collect(),
+                }
             }
             Err(_) => Self::empty(),
         }
@@ -88,8 +103,12 @@ impl CommunityPulse {
 }
 
 impl PulseSource for CommunityPulse {
-    fn name(&self) -> &'static str { "community" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "community"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 fn build_item(c: &CuratedItem) -> PulseItem {
@@ -135,8 +154,12 @@ pub fn extract_post_excerpts(raw: &str) -> Vec<(String, String, String)> {
         let sub = d["subreddit"].as_str().unwrap_or("").to_string();
         let title = d["title"].as_str().unwrap_or("").to_string();
         let selftext = d["selftext"].as_str().unwrap_or("").to_string();
-        if title.is_empty() { continue; }
-        if selftext.trim().is_empty() { continue; }
+        if title.is_empty() {
+            continue;
+        }
+        if selftext.trim().is_empty() {
+            continue;
+        }
         let truncated: String = selftext.chars().take(600).collect();
         out.push((sub, title, truncated));
     }

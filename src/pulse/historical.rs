@@ -27,11 +27,17 @@ impl HistoricalReadings {
             let path = entry.path();
             let raw = match std::fs::read_to_string(&path) {
                 Ok(r) => r,
-                Err(e) => { eprintln!("warn: read {path:?}: {e}"); continue; }
+                Err(e) => {
+                    eprintln!("warn: read {path:?}: {e}");
+                    continue;
+                }
             };
             let readings: Vec<ClassifiedReading> = match serde_json::from_str(&raw) {
                 Ok(r) => r,
-                Err(e) => { eprintln!("warn: parse {path:?}: {e}"); continue; }
+                Err(e) => {
+                    eprintln!("warn: parse {path:?}: {e}");
+                    continue;
+                }
             };
             for r in readings {
                 items.push(PulseItem {
@@ -47,8 +53,12 @@ impl HistoricalReadings {
 }
 
 impl PulseSource for HistoricalReadings {
-    fn name(&self) -> &'static str { "historical" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "historical"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 #[cfg(test)]
@@ -73,7 +83,8 @@ mod tests {
     #[test]
     fn historical_skips_today_file() {
         let dir = tempdir().unwrap();
-        let today = r#"[{"step":1,"reason":"r","source":"A","title":"t","text":"today","url":"u"}]"#;
+        let today =
+            r#"[{"step":1,"reason":"r","source":"A","title":"t","text":"today","url":"u"}]"#;
         std::fs::write(dir.path().join("readings-2026-04-15.json"), today).unwrap();
         let h = HistoricalReadings::load_from(dir.path(), "readings-2026-04-15.json");
         assert!(h.items().is_empty());

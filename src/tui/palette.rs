@@ -9,7 +9,10 @@ use chrono::Timelike;
 use ratatui::style::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode { Light, Dark }
+pub enum Mode {
+    Light,
+    Dark,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variant {
@@ -71,7 +74,10 @@ pub enum Variant {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code, reason = "mode/variant/bg are part of the public Palette surface; not all consumers use them yet")]
+#[allow(
+    dead_code,
+    reason = "mode/variant/bg are part of the public Palette surface; not all consumers use them yet"
+)]
 pub struct Palette {
     pub mode: Mode,
     pub variant: Variant,
@@ -83,136 +89,170 @@ pub struct Palette {
 
 impl Variant {
     pub const ALL: [Variant; 51] = [
-        Variant::Default, Variant::Warm, Variant::Cool, Variant::Mono,
-        Variant::Sunset, Variant::Sage, Variant::Dawn, Variant::Dusk,
-        Variant::Ember, Variant::Ocean, Variant::Rose, Variant::Forest,
-        Variant::Amber, Variant::Slate, Variant::Mint, Variant::Lavender,
-        Variant::Copper, Variant::Indigo, Variant::Nord,
+        Variant::Default,
+        Variant::Warm,
+        Variant::Cool,
+        Variant::Mono,
+        Variant::Sunset,
+        Variant::Sage,
+        Variant::Dawn,
+        Variant::Dusk,
+        Variant::Ember,
+        Variant::Ocean,
+        Variant::Rose,
+        Variant::Forest,
+        Variant::Amber,
+        Variant::Slate,
+        Variant::Mint,
+        Variant::Lavender,
+        Variant::Copper,
+        Variant::Indigo,
+        Variant::Nord,
         // --- black metal ---
-        Variant::Frostbitten, Variant::CorpsePaint, Variant::CrimsonAltar,
-        Variant::PaleRider, Variant::Funeral, Variant::Moonspell,
-        Variant::Ashen, Variant::Pestilence, Variant::Obsidian,
-        Variant::Winterfell, Variant::Raven, Variant::Bloodmoon,
-        Variant::Tundra, Variant::Necrotic, Variant::Cascadian,
-        Variant::IronOath, Variant::Hellfire, Variant::Sepulchral,
-        Variant::Wraith, Variant::Abyssal,
+        Variant::Frostbitten,
+        Variant::CorpsePaint,
+        Variant::CrimsonAltar,
+        Variant::PaleRider,
+        Variant::Funeral,
+        Variant::Moonspell,
+        Variant::Ashen,
+        Variant::Pestilence,
+        Variant::Obsidian,
+        Variant::Winterfell,
+        Variant::Raven,
+        Variant::Bloodmoon,
+        Variant::Tundra,
+        Variant::Necrotic,
+        Variant::Cascadian,
+        Variant::IronOath,
+        Variant::Hellfire,
+        Variant::Sepulchral,
+        Variant::Wraith,
+        Variant::Abyssal,
         // --- popular terminal schemes ---
-        Variant::SolarizedDark, Variant::SolarizedLight,
-        Variant::GruvboxDark, Variant::GruvboxLight,
-        Variant::Dracula, Variant::TokyoNight, Variant::Catppuccin,
-        Variant::OneDark, Variant::Monokai, Variant::Synthwave,
-        Variant::Ayu, Variant::Kanagawa,
+        Variant::SolarizedDark,
+        Variant::SolarizedLight,
+        Variant::GruvboxDark,
+        Variant::GruvboxLight,
+        Variant::Dracula,
+        Variant::TokyoNight,
+        Variant::Catppuccin,
+        Variant::OneDark,
+        Variant::Monokai,
+        Variant::Synthwave,
+        Variant::Ayu,
+        Variant::Kanagawa,
     ];
 
     pub fn parse(raw: Option<&str>) -> Variant {
         match raw {
-            Some("warm")     => Variant::Warm,
-            Some("cool")     => Variant::Cool,
-            Some("mono")     => Variant::Mono,
-            Some("sunset")   => Variant::Sunset,
-            Some("sage")     => Variant::Sage,
-            Some("dawn")     => Variant::Dawn,
-            Some("dusk")     => Variant::Dusk,
-            Some("ember")    => Variant::Ember,
-            Some("ocean")    => Variant::Ocean,
-            Some("rose")     => Variant::Rose,
-            Some("forest")   => Variant::Forest,
-            Some("amber")    => Variant::Amber,
-            Some("slate")    => Variant::Slate,
-            Some("mint")     => Variant::Mint,
+            Some("warm") => Variant::Warm,
+            Some("cool") => Variant::Cool,
+            Some("mono") => Variant::Mono,
+            Some("sunset") => Variant::Sunset,
+            Some("sage") => Variant::Sage,
+            Some("dawn") => Variant::Dawn,
+            Some("dusk") => Variant::Dusk,
+            Some("ember") => Variant::Ember,
+            Some("ocean") => Variant::Ocean,
+            Some("rose") => Variant::Rose,
+            Some("forest") => Variant::Forest,
+            Some("amber") => Variant::Amber,
+            Some("slate") => Variant::Slate,
+            Some("mint") => Variant::Mint,
             Some("lavender") => Variant::Lavender,
-            Some("copper")        => Variant::Copper,
-            Some("indigo")        => Variant::Indigo,
-            Some("nord")          => Variant::Nord,
-            Some("frostbitten")   => Variant::Frostbitten,
-            Some("corpse_paint")  => Variant::CorpsePaint,
+            Some("copper") => Variant::Copper,
+            Some("indigo") => Variant::Indigo,
+            Some("nord") => Variant::Nord,
+            Some("frostbitten") => Variant::Frostbitten,
+            Some("corpse_paint") => Variant::CorpsePaint,
             Some("crimson_altar") => Variant::CrimsonAltar,
-            Some("pale_rider")    => Variant::PaleRider,
-            Some("funeral")       => Variant::Funeral,
-            Some("moonspell")     => Variant::Moonspell,
-            Some("ashen")         => Variant::Ashen,
-            Some("pestilence")    => Variant::Pestilence,
-            Some("obsidian")      => Variant::Obsidian,
-            Some("winterfell")    => Variant::Winterfell,
-            Some("raven")         => Variant::Raven,
-            Some("bloodmoon")     => Variant::Bloodmoon,
-            Some("tundra")        => Variant::Tundra,
-            Some("necrotic")      => Variant::Necrotic,
-            Some("cascadian")     => Variant::Cascadian,
-            Some("iron_oath")     => Variant::IronOath,
-            Some("hellfire")      => Variant::Hellfire,
-            Some("sepulchral")    => Variant::Sepulchral,
-            Some("wraith")           => Variant::Wraith,
-            Some("abyssal")          => Variant::Abyssal,
-            Some("solarized_dark")   => Variant::SolarizedDark,
-            Some("solarized_light")  => Variant::SolarizedLight,
-            Some("gruvbox_dark")     => Variant::GruvboxDark,
-            Some("gruvbox_light")    => Variant::GruvboxLight,
-            Some("dracula")          => Variant::Dracula,
-            Some("tokyo_night")      => Variant::TokyoNight,
-            Some("catppuccin")       => Variant::Catppuccin,
-            Some("onedark")          => Variant::OneDark,
-            Some("monokai")          => Variant::Monokai,
-            Some("synthwave")        => Variant::Synthwave,
-            Some("ayu")              => Variant::Ayu,
-            Some("kanagawa")         => Variant::Kanagawa,
+            Some("pale_rider") => Variant::PaleRider,
+            Some("funeral") => Variant::Funeral,
+            Some("moonspell") => Variant::Moonspell,
+            Some("ashen") => Variant::Ashen,
+            Some("pestilence") => Variant::Pestilence,
+            Some("obsidian") => Variant::Obsidian,
+            Some("winterfell") => Variant::Winterfell,
+            Some("raven") => Variant::Raven,
+            Some("bloodmoon") => Variant::Bloodmoon,
+            Some("tundra") => Variant::Tundra,
+            Some("necrotic") => Variant::Necrotic,
+            Some("cascadian") => Variant::Cascadian,
+            Some("iron_oath") => Variant::IronOath,
+            Some("hellfire") => Variant::Hellfire,
+            Some("sepulchral") => Variant::Sepulchral,
+            Some("wraith") => Variant::Wraith,
+            Some("abyssal") => Variant::Abyssal,
+            Some("solarized_dark") => Variant::SolarizedDark,
+            Some("solarized_light") => Variant::SolarizedLight,
+            Some("gruvbox_dark") => Variant::GruvboxDark,
+            Some("gruvbox_light") => Variant::GruvboxLight,
+            Some("dracula") => Variant::Dracula,
+            Some("tokyo_night") => Variant::TokyoNight,
+            Some("catppuccin") => Variant::Catppuccin,
+            Some("onedark") => Variant::OneDark,
+            Some("monokai") => Variant::Monokai,
+            Some("synthwave") => Variant::Synthwave,
+            Some("ayu") => Variant::Ayu,
+            Some("kanagawa") => Variant::Kanagawa,
             _ => Variant::Default,
         }
     }
 
     pub fn label(&self) -> &'static str {
         match self {
-            Variant::Default  => "default",
-            Variant::Warm     => "warm",
-            Variant::Cool     => "cool",
-            Variant::Mono     => "mono",
-            Variant::Sunset   => "sunset",
-            Variant::Sage     => "sage",
-            Variant::Dawn     => "dawn",
-            Variant::Dusk     => "dusk",
-            Variant::Ember    => "ember",
-            Variant::Ocean    => "ocean",
-            Variant::Rose     => "rose",
-            Variant::Forest   => "forest",
-            Variant::Amber    => "amber",
-            Variant::Slate    => "slate",
-            Variant::Mint     => "mint",
+            Variant::Default => "default",
+            Variant::Warm => "warm",
+            Variant::Cool => "cool",
+            Variant::Mono => "mono",
+            Variant::Sunset => "sunset",
+            Variant::Sage => "sage",
+            Variant::Dawn => "dawn",
+            Variant::Dusk => "dusk",
+            Variant::Ember => "ember",
+            Variant::Ocean => "ocean",
+            Variant::Rose => "rose",
+            Variant::Forest => "forest",
+            Variant::Amber => "amber",
+            Variant::Slate => "slate",
+            Variant::Mint => "mint",
             Variant::Lavender => "lavender",
-            Variant::Copper       => "copper",
-            Variant::Indigo       => "indigo",
-            Variant::Nord         => "nord",
-            Variant::Frostbitten  => "frostbitten",
-            Variant::CorpsePaint  => "corpse_paint",
+            Variant::Copper => "copper",
+            Variant::Indigo => "indigo",
+            Variant::Nord => "nord",
+            Variant::Frostbitten => "frostbitten",
+            Variant::CorpsePaint => "corpse_paint",
             Variant::CrimsonAltar => "crimson_altar",
-            Variant::PaleRider    => "pale_rider",
-            Variant::Funeral      => "funeral",
-            Variant::Moonspell    => "moonspell",
-            Variant::Ashen        => "ashen",
-            Variant::Pestilence   => "pestilence",
-            Variant::Obsidian     => "obsidian",
-            Variant::Winterfell   => "winterfell",
-            Variant::Raven        => "raven",
-            Variant::Bloodmoon    => "bloodmoon",
-            Variant::Tundra       => "tundra",
-            Variant::Necrotic     => "necrotic",
-            Variant::Cascadian    => "cascadian",
-            Variant::IronOath     => "iron_oath",
-            Variant::Hellfire     => "hellfire",
-            Variant::Sepulchral   => "sepulchral",
-            Variant::Wraith          => "wraith",
-            Variant::Abyssal         => "abyssal",
-            Variant::SolarizedDark   => "solarized_dark",
-            Variant::SolarizedLight  => "solarized_light",
-            Variant::GruvboxDark     => "gruvbox_dark",
-            Variant::GruvboxLight    => "gruvbox_light",
-            Variant::Dracula         => "dracula",
-            Variant::TokyoNight      => "tokyo_night",
-            Variant::Catppuccin      => "catppuccin",
-            Variant::OneDark         => "onedark",
-            Variant::Monokai         => "monokai",
-            Variant::Synthwave       => "synthwave",
-            Variant::Ayu             => "ayu",
-            Variant::Kanagawa        => "kanagawa",
+            Variant::PaleRider => "pale_rider",
+            Variant::Funeral => "funeral",
+            Variant::Moonspell => "moonspell",
+            Variant::Ashen => "ashen",
+            Variant::Pestilence => "pestilence",
+            Variant::Obsidian => "obsidian",
+            Variant::Winterfell => "winterfell",
+            Variant::Raven => "raven",
+            Variant::Bloodmoon => "bloodmoon",
+            Variant::Tundra => "tundra",
+            Variant::Necrotic => "necrotic",
+            Variant::Cascadian => "cascadian",
+            Variant::IronOath => "iron_oath",
+            Variant::Hellfire => "hellfire",
+            Variant::Sepulchral => "sepulchral",
+            Variant::Wraith => "wraith",
+            Variant::Abyssal => "abyssal",
+            Variant::SolarizedDark => "solarized_dark",
+            Variant::SolarizedLight => "solarized_light",
+            Variant::GruvboxDark => "gruvbox_dark",
+            Variant::GruvboxLight => "gruvbox_light",
+            Variant::Dracula => "dracula",
+            Variant::TokyoNight => "tokyo_night",
+            Variant::Catppuccin => "catppuccin",
+            Variant::OneDark => "onedark",
+            Variant::Monokai => "monokai",
+            Variant::Synthwave => "synthwave",
+            Variant::Ayu => "ayu",
+            Variant::Kanagawa => "kanagawa",
         }
     }
 }
@@ -712,7 +752,14 @@ impl Palette {
                 Color::Rgb(0x72, 0x71, 0x69),
             ),
         };
-        Palette { mode, variant, bg, accent, body, muted }
+        Palette {
+            mode,
+            variant,
+            bg,
+            accent,
+            body,
+            muted,
+        }
     }
 }
 
@@ -727,8 +774,8 @@ impl Palette {
             variant: self.variant,
             bg: self.bg,
             accent: dim_color(self.accent, factor, self.mode),
-            body:   dim_color(self.body,   factor, self.mode),
-            muted:  dim_color(self.muted,  factor, self.mode),
+            body: dim_color(self.body, factor, self.mode),
+            muted: dim_color(self.muted, factor, self.mode),
         }
     }
 }
@@ -742,7 +789,7 @@ fn dim_color(c: Color, factor: f32, mode: Mode) -> Color {
     };
     // Dark mode dims toward black; light mode toward white.
     let (br, bg, bb) = match mode {
-        Mode::Dark  => (0u8, 0u8, 0u8),
+        Mode::Dark => (0u8, 0u8, 0u8),
         Mode::Light => (255u8, 255u8, 255u8),
     };
     let blend = |src: u8, dst: u8| -> u8 {
@@ -758,8 +805,8 @@ fn dim_color(c: Color, factor: f32, mode: Mode) -> Color {
 /// cool midday, sunset, dusk, and deep night. Deterministic per hour.
 pub fn auto_variant(hour: u32) -> Variant {
     match hour {
-        5..=6   => Variant::Dawn,
-        7..=9   => Variant::Warm,
+        5..=6 => Variant::Dawn,
+        7..=9 => Variant::Warm,
         10..=11 => Variant::Default,
         12..=14 => Variant::Cool,
         15..=16 => Variant::Sage,
@@ -813,14 +860,19 @@ pub fn from_env() -> Palette {
 /// True when the user has set the `NO_COLOR` environment variable. Per the
 /// https://no-color.org standard: any non-empty value disables color.
 pub fn no_color_requested() -> bool {
-    std::env::var("NO_COLOR").ok().is_some_and(|v| !v.is_empty())
+    std::env::var("NO_COLOR")
+        .ok()
+        .is_some_and(|v| !v.is_empty())
 }
 
 /// True when the user asked for the time-of-day auto palette. Lets the
 /// main loop re-derive the palette periodically so it drifts through the
 /// day without a restart.
 pub fn auto_requested() -> bool {
-    matches!(std::env::var("IWIYWI_PALETTE").ok().as_deref(), Some("auto"))
+    matches!(
+        std::env::var("IWIYWI_PALETTE").ok().as_deref(),
+        Some("auto")
+    )
 }
 
 #[cfg(test)]
@@ -838,8 +890,12 @@ mod tests {
     fn variant_parse_each() {
         for v in Variant::ALL {
             // Every variant's label must round-trip through parse.
-            assert_eq!(Variant::parse(Some(v.label())), v,
-                "variant {} failed round-trip", v.label());
+            assert_eq!(
+                Variant::parse(Some(v.label())),
+                v,
+                "variant {} failed round-trip",
+                v.label()
+            );
         }
     }
 
@@ -852,7 +908,7 @@ mod tests {
     #[test]
     fn palettes_differ_per_variant() {
         let dark_default = Palette::build(Mode::Dark, Variant::Default);
-        let dark_warm    = Palette::build(Mode::Dark, Variant::Warm);
+        let dark_warm = Palette::build(Mode::Dark, Variant::Warm);
         assert_ne!(dark_default.accent, dark_warm.accent);
     }
 
@@ -869,8 +925,11 @@ mod tests {
         for v in Variant::ALL {
             let p = Palette::build(Mode::Dark, v);
             let key = color_key(p.accent);
-            assert!(seen.insert(key),
-                "duplicate dark accent for variant {}", v.label());
+            assert!(
+                seen.insert(key),
+                "duplicate dark accent for variant {}",
+                v.label()
+            );
         }
     }
 
@@ -880,8 +939,11 @@ mod tests {
         for v in Variant::ALL {
             let p = Palette::build(Mode::Light, v);
             let key = color_key(p.accent);
-            assert!(seen.insert(key),
-                "duplicate light accent for variant {}", v.label());
+            assert!(
+                seen.insert(key),
+                "duplicate light accent for variant {}",
+                v.label()
+            );
         }
     }
 
@@ -892,12 +954,9 @@ mod tests {
                 let p = Palette::build(m, v);
                 // accent vs body, accent vs muted, body vs muted — all must
                 // differ, otherwise one role is invisible against another.
-                assert_ne!(p.accent, p.body,
-                    "{} {:?}: accent == body", v.label(), m);
-                assert_ne!(p.accent, p.muted,
-                    "{} {:?}: accent == muted", v.label(), m);
-                assert_ne!(p.body, p.muted,
-                    "{} {:?}: body == muted", v.label(), m);
+                assert_ne!(p.accent, p.body, "{} {:?}: accent == body", v.label(), m);
+                assert_ne!(p.accent, p.muted, "{} {:?}: accent == muted", v.label(), m);
+                assert_ne!(p.body, p.muted, "{} {:?}: body == muted", v.label(), m);
             }
         }
     }
@@ -906,8 +965,10 @@ mod tests {
     fn every_label_is_lowercase_ascii() {
         for v in Variant::ALL {
             let l = v.label();
-            assert!(l.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
-                "label {l} must be lowercase ascii + underscores");
+            assert!(
+                l.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+                "label {l} must be lowercase ascii + underscores"
+            );
             assert!(!l.is_empty());
         }
     }

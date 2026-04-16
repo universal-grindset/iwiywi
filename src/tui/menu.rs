@@ -46,11 +46,11 @@ impl Row {
 
     pub fn label(&self) -> &'static str {
         match self {
-            Row::Palette   => "Palette",
-            Row::Pattern   => "Pattern",
-            Row::TextSize  => "Text size",
-            Row::Order     => "Order",
-            Row::Focus     => "Focus",
+            Row::Palette => "Palette",
+            Row::Pattern => "Pattern",
+            Row::TextSize => "Text size",
+            Row::Order => "Order",
+            Row::Focus => "Focus",
             Row::PulseSecs => "Pulse secs",
         }
     }
@@ -59,26 +59,30 @@ impl Row {
 /// Pulse-secs ring: 0 (manual), then increasing intervals up to 5 min.
 pub const PULSE_SECS_RING: [u64; 11] = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 300];
 
-pub fn render(
-    frame: &mut Frame,
-    palette: &Palette,
-    cursor: usize,
-    values: [String; ROW_COUNT],
-) {
+pub fn render(frame: &mut Frame, palette: &Palette, cursor: usize, values: [String; ROW_COUNT]) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
     let width: u16 = 40;
     let height: u16 = 16;
-    if area.width < width || area.height < height { return; }
+    if area.width < width || area.height < height {
+        return;
+    }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     // Dim-out / clear the overlay rect so the menu sits on a solid panel.
     for row_y in rect.y..rect.y + rect.height {
         for col_x in rect.x..rect.x + rect.width {
-            buf[(col_x, row_y)].set_symbol(" ").set_style(Style::default());
+            buf[(col_x, row_y)]
+                .set_symbol(" ")
+                .set_style(Style::default());
         }
     }
 
@@ -94,10 +98,12 @@ pub fn render(
     // centered horizontally. Rendered with the accent color so it pops.
     let banner_lines: Vec<Line> = BANNER
         .iter()
-        .map(|s| Line::from(Span::styled(
-            (*s).to_string(),
-            Style::default().fg(palette.accent),
-        )))
+        .map(|s| {
+            Line::from(Span::styled(
+                (*s).to_string(),
+                Style::default().fg(palette.accent),
+            ))
+        })
         .collect();
     let banner_rect = Rect {
         x: inner.x,
@@ -123,7 +129,9 @@ pub fn render(
         let active = i == cursor;
         let marker = if active { "› " } else { "  " };
         let label_style = if active {
-            Style::default().fg(palette.accent).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(palette.accent)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.body)
         };
@@ -141,7 +149,9 @@ pub fn render(
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         "↑↓ pick  ←→ cycle  Esc close",
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     )));
 
     Paragraph::new(lines)

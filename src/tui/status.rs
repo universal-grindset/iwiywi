@@ -40,14 +40,23 @@ pub struct StatusLine<'a> {
 
 pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
     let area = frame.area();
-    if area.height < 2 { return; }
+    if area.height < 2 {
+        return;
+    }
     let buf = frame.buffer_mut();
     let y = area.y + area.height - 1;
-    let row = Rect { x: area.x, y, width: area.width, height: 1 };
+    let row = Rect {
+        x: area.x,
+        y,
+        width: area.width,
+        height: 1,
+    };
 
     // Clear the row so nothing underneath bleeds through.
     for col_x in row.x..row.x + row.width {
-        buf[(col_x, row.y)].set_symbol(" ").set_style(Style::default());
+        buf[(col_x, row.y)]
+            .set_symbol(" ")
+            .set_style(Style::default());
     }
 
     let left = left_text(status);
@@ -58,17 +67,37 @@ pub fn render(frame: &mut Frame, palette: &Palette, status: &StatusLine) {
 
     Paragraph::new(Line::from(Span::styled(
         format!(" {left}"),
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     )))
-    .render(Rect { x: row.x, y: row.y, width: left_w + 1, height: 1 }, buf);
+    .render(
+        Rect {
+            x: row.x,
+            y: row.y,
+            width: left_w + 1,
+            height: 1,
+        },
+        buf,
+    );
 
     if !right.is_empty() {
         let right_x = row.x + row.width.saturating_sub(right_w + 1);
         Paragraph::new(Line::from(Span::styled(
             format!("{right} "),
-            Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(palette.muted)
+                .add_modifier(Modifier::ITALIC),
         )))
-        .render(Rect { x: right_x, y: row.y, width: right_w + 1, height: 1 }, buf);
+        .render(
+            Rect {
+                x: right_x,
+                y: row.y,
+                width: right_w + 1,
+                height: 1,
+            },
+            buf,
+        );
     }
 
     // Progress bar spans the middle gap. Skipped when too narrow or when
@@ -104,9 +133,12 @@ fn left_text(status: &StatusLine) -> String {
         (None, Focus::All) => String::new(),
         (None, f) => format!("focus: {}", f.label()),
     };
-    let search_chip = status.search_match_count
+    let search_chip = status
+        .search_match_count
         .filter(|n| *n > 0)
-        .map_or(String::new(), |n| format!(" · {n} match{}", if n == 1 { "" } else { "es" }));
+        .map_or(String::new(), |n| {
+            format!(" · {n} match{}", if n == 1 { "" } else { "es" })
+        });
     let paused = if status.paused { " · paused" } else { "" };
     if focus_chip.is_empty() {
         format!("{pos} / {total}{search_chip}{paused}")
@@ -117,10 +149,18 @@ fn left_text(status: &StatusLine) -> String {
 
 fn right_text(status: &StatusLine) -> String {
     // Priority: transient toast > contextual hints > sobriety anchor.
-    if let Some(msg) = status.toast { return msg.to_string(); }
-    if !status.hints.is_empty() { return status.hints.to_string(); }
+    if let Some(msg) = status.toast {
+        return msg.to_string();
+    }
+    if !status.hints.is_empty() {
+        return status.hints.to_string();
+    }
     status.sobriety_days.map_or(String::new(), |d| {
-        if d < 0 { String::new() } else { format!("Day {d}") }
+        if d < 0 {
+            String::new()
+        } else {
+            format!("Day {d}")
+        }
     })
 }
 
@@ -135,18 +175,29 @@ pub fn draw_weather_anchor(
     palette: &Palette,
     weather: Option<&WeatherSnapshot>,
 ) {
-    if area.width < 30 || area.height < 2 { return; }
+    if area.width < 30 || area.height < 2 {
+        return;
+    }
     let date = chrono::Local::now().format("%a, %b %-d").to_string();
     let text = match weather {
         Some(w) => format!("{date}  ·  {}", w.text),
         None => date,
     };
     let text_w = text.chars().count() as u16 + 2;
-    if area.width < text_w + 2 { return; }
-    let rect = Rect { x: area.x + 1, y: area.y, width: text_w, height: 1 };
+    if area.width < text_w + 2 {
+        return;
+    }
+    let rect = Rect {
+        x: area.x + 1,
+        y: area.y,
+        width: text_w,
+        height: 1,
+    };
     Paragraph::new(Line::from(Span::styled(
         text,
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     )))
     .render(rect, buf);
 }
@@ -161,7 +212,9 @@ pub fn draw_moon_anchor(
     palette: &Palette,
     sobriety_days: Option<i64>,
 ) {
-    if area.width < 30 || area.height < 3 { return; }
+    if area.width < 30 || area.height < 3 {
+        return;
+    }
     let today = chrono::Local::now().date_naive();
     let idx = moon::phase_index(today);
     let glyph = moon::phase_glyph(idx);
@@ -172,13 +225,22 @@ pub fn draw_moon_anchor(
     // Width must budget for the glyph (often 2 terminal cells for emoji
     // moon chars). Assume at most 2 extra cells for the glyph vs char count.
     let text_w = text.chars().count() as u16 + 2;
-    if area.width < text_w + 2 { return; }
+    if area.width < text_w + 2 {
+        return;
+    }
     let x = area.x + area.width.saturating_sub(text_w + 1);
     let y = area.y;
-    let rect = Rect { x, y, width: text_w, height: 1 };
+    let rect = Rect {
+        x,
+        y,
+        width: text_w,
+        height: 1,
+    };
     Paragraph::new(Line::from(Span::styled(
         text,
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     )))
     .render(rect, buf);
 }
@@ -193,9 +255,16 @@ mod tests {
 
     fn stub<'a>(mixer: &'a PulseMixer) -> StatusLine<'a> {
         StatusLine {
-            mixer, focus: Focus::All, focus_step: None,
-            pulse_progress: None, sobriety_days: None, paused: false, toast: None,
-            search_query: None, search_match_count: None, hints: "",
+            mixer,
+            focus: Focus::All,
+            focus_step: None,
+            pulse_progress: None,
+            sobriety_days: None,
+            paused: false,
+            toast: None,
+            search_query: None,
+            search_match_count: None,
+            hints: "",
         }
     }
 
@@ -208,28 +277,32 @@ mod tests {
     #[test]
     fn left_text_step_focus() {
         let mixer = stub_mixer();
-        let mut s = stub(&mixer); s.focus_step = Some(3);
+        let mut s = stub(&mixer);
+        s.focus_step = Some(3);
         assert!(left_text(&s).contains("Step 3"));
     }
 
     #[test]
     fn left_text_source_focus() {
         let mixer = stub_mixer();
-        let mut s = stub(&mixer); s.focus = Focus::Prayers;
+        let mut s = stub(&mixer);
+        s.focus = Focus::Prayers;
         assert!(left_text(&s).contains("focus: prayers"));
     }
 
     #[test]
     fn left_text_paused() {
         let mixer = stub_mixer();
-        let mut s = stub(&mixer); s.paused = true;
+        let mut s = stub(&mixer);
+        s.paused = true;
         assert!(left_text(&s).ends_with("paused"));
     }
 
     #[test]
     fn right_text_sobriety_day() {
         let mixer = stub_mixer();
-        let mut s = stub(&mixer); s.sobriety_days = Some(1123);
+        let mut s = stub(&mixer);
+        s.sobriety_days = Some(1123);
         assert_eq!(right_text(&s), "Day 1123");
     }
 
@@ -242,7 +315,8 @@ mod tests {
     #[test]
     fn right_text_empty_when_future_date() {
         let mixer = stub_mixer();
-        let mut s = stub(&mixer); s.sobriety_days = Some(-5);
+        let mut s = stub(&mixer);
+        s.sobriety_days = Some(-5);
         assert!(right_text(&s).is_empty());
     }
 

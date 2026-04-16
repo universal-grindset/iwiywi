@@ -93,14 +93,20 @@ async fn css() -> impl IntoResponse {
 
 async fn js() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
         PULSE_JS,
     )
 }
 
 async fn manifest() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "application/manifest+json; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "application/manifest+json; charset=utf-8",
+        )],
         MANIFEST_JSON,
     )
 }

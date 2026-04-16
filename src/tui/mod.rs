@@ -68,7 +68,9 @@ const JOURNAL_SEED_SYSTEM_PROMPT: &str =
 /// label+body combined. Empty query returns `Some(0)` so the caller
 /// can special-case "no query = show everything."
 pub fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
-    if query.is_empty() { return Some(0); }
+    if query.is_empty() {
+        return Some(0);
+    }
     let hay: Vec<char> = haystack.to_lowercase().chars().collect();
     let needle: Vec<char> = query.to_lowercase().chars().collect();
     let mut hi = 0usize;
@@ -86,7 +88,9 @@ pub fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
             // weight than prefix position so "pr" at `Serenity Prayer`
             // (word start) beats "pr" at `approach` (mid-word).
             let at_boundary = hi == 0 || !hay[hi - 1].is_alphanumeric();
-            if at_boundary { score += 30; }
+            if at_boundary {
+                score += 30;
+            }
             if first_match.is_none() {
                 first_match = Some(hi);
             }
@@ -108,7 +112,11 @@ pub fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
             score += (8 - pos as i32) * 2;
         }
     }
-    if qi == needle.len() { Some(score) } else { None }
+    if qi == needle.len() {
+        Some(score)
+    } else {
+        None
+    }
 }
 
 fn sha_hex(input: &str) -> String {
@@ -117,14 +125,20 @@ fn sha_hex(input: &str) -> String {
     hasher.update(input.as_bytes());
     let digest = hasher.finalize();
     let mut out = String::with_capacity(digest.len() * 2);
-    for b in digest { let _ = write!(out, "{b:02x}"); }
+    for b in digest {
+        let _ = write!(out, "{b:02x}");
+    }
     out
 }
 
 fn read_cache_file(path: &Path) -> Option<String> {
     let raw = std::fs::read_to_string(path).ok()?;
     let trimmed = raw.trim();
-    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 fn write_cache_file(path: &Path, body: &str) -> std::io::Result<()> {
@@ -251,9 +265,13 @@ impl App {
     }
 
     pub fn prev(&mut self) {
-        if self.mixer.is_empty() { return; }
+        if self.mixer.is_empty() {
+            return;
+        }
         let len = self.mixer.len();
-        for _ in 0..len.saturating_sub(1) { self.mixer.advance(); }
+        for _ in 0..len.saturating_sub(1) {
+            self.mixer.advance();
+        }
         self.last_advance = Instant::now();
         self.begin_transition();
     }
@@ -348,9 +366,15 @@ impl App {
     }
 
     pub fn toggle_favorite(&mut self) {
-        let Some(item) = self.mixer.current() else { return; };
+        let Some(item) = self.mixer.current() else {
+            return;
+        };
         let item = item.clone();
-        let msg = if self.favorites.toggle(&item) { "★ saved" } else { "★ removed" };
+        let msg = if self.favorites.toggle(&item) {
+            "★ saved"
+        } else {
+            "★ removed"
+        };
         self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(1500)));
         // The mixer's Favorites source is a separate snapshot of the file,
         // so refresh it from disk before rebuilding so Focus::Favorites sees
@@ -364,17 +388,26 @@ impl App {
     }
 
     pub fn copy_current(&mut self) {
-        let Some(item) = self.mixer.current() else { return; };
+        let Some(item) = self.mixer.current() else {
+            return;
+        };
         let text = format!("{}\n\n{}\n", item.label, item.body);
         let ok = clipboard::copy(&text);
-        let msg = if ok { "copied" } else { "no clipboard available" };
+        let msg = if ok {
+            "copied"
+        } else {
+            "no clipboard available"
+        };
         self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(1500)));
     }
 
     pub fn export_current(&mut self) {
         let exports_dir = config::config_dir().join("exports");
         let msg = match export::write_current(&self.mixer, exports_dir) {
-            Some(path) => format!("exported → {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("file")),
+            Some(path) => format!(
+                "exported → {}",
+                path.file_name().and_then(|n| n.to_str()).unwrap_or("file")
+            ),
             None => "export failed".to_string(),
         };
         self.toast = Some((msg, Instant::now(), Duration::from_millis(1500)));
@@ -385,7 +418,9 @@ impl App {
     /// thread and leaves the overlay in Loading until the main loop polls
     /// `ai_rx` and applies the outcome.
     pub fn explain_current(&mut self) {
-        let Some(item) = self.mixer.current() else { return; };
+        let Some(item) = self.mixer.current() else {
+            return;
+        };
         let title = format!("Why this matters — {}", item.kind.display_label());
         let cache_dir = config::config_dir().join("ai_cache").join("explain");
         let cache_key = sha_hex(&item.body);
@@ -401,20 +436,22 @@ impl App {
         };
         self.ai_overlay = Some(AiOverlay::loading(title));
         let system = EXPLAIN_SYSTEM_PROMPT.to_string();
-        let user = format!(
-            "Reading ({}):\n\n{}",
-            item.kind.display_label(),
-            item.body,
-        );
+        let user = format!("Reading ({}):\n\n{}", item.kind.display_label(), item.body,);
         let cache_path = cache_dir.join(format!("{cache_key}.txt"));
         let config = self.ai_config.clone();
-        let opts = ChatOpts { max_tokens: Some(300), temperature: Some(0.4), json_mode: false };
+        let opts = ChatOpts {
+            max_tokens: Some(300),
+            temperature: Some(0.4),
+            json_mode: false,
+        };
         self.spawn_ai(client, config, system, user, opts, Some(cache_path));
     }
 
     /// Open a step meditation overlay for step `n`. Per-day cache key.
     pub fn meditate_step(&mut self, step: u8) {
-        if !(1..=12).contains(&step) { return; }
+        if !(1..=12).contains(&step) {
+            return;
+        }
         let today = chrono::Local::now().date_naive();
         let title = format!("Meditation on Step {step}");
         let cache_dir = config::config_dir().join("ai_cache").join("meditations");
@@ -436,7 +473,11 @@ impl App {
              in an ordinary day of recovery. Ground it in something practical.",
         );
         let config = self.ai_config.clone();
-        let opts = ChatOpts { max_tokens: Some(400), temperature: Some(0.7), json_mode: false };
+        let opts = ChatOpts {
+            max_tokens: Some(400),
+            temperature: Some(0.7),
+            json_mode: false,
+        };
         self.spawn_ai(client, config, system, user, opts, Some(cache_path));
     }
 
@@ -506,7 +547,9 @@ impl App {
     fn recompute_matches(&mut self) {
         self.search_matches.clear();
         let q = self.search_query.trim();
-        if q.is_empty() { return; }
+        if q.is_empty() {
+            return;
+        }
         // Fuzzy subsequence scoring: every query char must appear in the
         // haystack in order. Bonuses for consecutive runs and word-
         // boundary landings; the sort surfaces the strongest match first
@@ -532,9 +575,17 @@ impl App {
     fn search_keystroke(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char(c) => self.search_query.push(c),
-            KeyCode::Backspace => { self.search_query.pop(); }
-            KeyCode::Enter => { self.submit_search(); return; }
-            KeyCode::Esc => { self.cancel_search(); return; }
+            KeyCode::Backspace => {
+                self.search_query.pop();
+            }
+            KeyCode::Enter => {
+                self.submit_search();
+                return;
+            }
+            KeyCode::Esc => {
+                self.cancel_search();
+                return;
+            }
             _ => {}
         }
         // Live-preview: recompute matches on every keystroke so the user
@@ -573,7 +624,10 @@ impl App {
     /// mutations on `self` (e.g. spawn_ai fires a background task and
     /// returns immediately).
     pub fn handle_event(&mut self, ev: Event, size_w: u16, size_h: u16) {
-        if let Event::Mouse(MouseEvent { kind, modifiers, .. }) = ev {
+        if let Event::Mouse(MouseEvent {
+            kind, modifiers, ..
+        }) = ev
+        {
             // Shift+click: let the terminal handle text selection rather
             // than swallowing the event. Per tui-design skill: "Mouse
             // capture doesn't break text selection (Shift+click)."
@@ -613,8 +667,12 @@ impl App {
             }
             return;
         }
-        let Event::Key(key) = ev else { return; };
-        if key.kind != KeyEventKind::Press { return; }
+        let Event::Key(key) = ev else {
+            return;
+        };
+        if key.kind != KeyEventKind::Press {
+            return;
+        }
         self.last_input = Instant::now();
         // Search mode captures every keystroke until Enter / Esc.
         if self.search_mode {
@@ -629,10 +687,14 @@ impl App {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('a' | 'q') => self.close_overlay(),
                 KeyCode::Char('j') | KeyCode::Down => {
-                    if let Some(ov) = self.ai_overlay.as_mut() { ov.scroll_down(); }
+                    if let Some(ov) = self.ai_overlay.as_mut() {
+                        ov.scroll_down();
+                    }
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    if let Some(ov) = self.ai_overlay.as_mut() { ov.scroll_up(); }
+                    if let Some(ov) = self.ai_overlay.as_mut() {
+                        ov.scroll_up();
+                    }
                 }
                 _ => {}
             }
@@ -640,13 +702,30 @@ impl App {
         }
         if self.menu_open {
             match key.code {
-                KeyCode::Char('m') | KeyCode::Esc => { self.menu_open = false; return; }
-                KeyCode::Up    => { self.menu_row_prev(); return; }
-                KeyCode::Down  => { self.menu_row_next(); return; }
-                KeyCode::Left  => { self.menu_cycle(-1, size_w, size_h); return; }
-                KeyCode::Right => { self.menu_cycle( 1, size_w, size_h); return; }
+                KeyCode::Char('m') | KeyCode::Esc => {
+                    self.menu_open = false;
+                    return;
+                }
+                KeyCode::Up => {
+                    self.menu_row_prev();
+                    return;
+                }
+                KeyCode::Down => {
+                    self.menu_row_next();
+                    return;
+                }
+                KeyCode::Left => {
+                    self.menu_cycle(-1, size_w, size_h);
+                    return;
+                }
+                KeyCode::Right => {
+                    self.menu_cycle(1, size_w, size_h);
+                    return;
+                }
                 // Any other key closes the menu and falls through below.
-                _ => { self.menu_open = false; }
+                _ => {
+                    self.menu_open = false;
+                }
             }
         }
         match key.code {
@@ -662,7 +741,9 @@ impl App {
             KeyCode::Char('r') => self.random(),
             KeyCode::Char(' ') => {
                 self.paused = !self.paused;
-                if !self.paused { self.last_advance = Instant::now(); }
+                if !self.paused {
+                    self.last_advance = Instant::now();
+                }
             }
             KeyCode::Char('a') => self.explain_current(),
             KeyCode::Char('F') => self.showcase = !self.showcase,
@@ -673,16 +754,23 @@ impl App {
                 let dir = config::config_dir().join("journal");
                 let seed = self.journal_seed();
                 match journal::open_today(dir, seed) {
-                    Ok(p) => self.toast = Some((
-                        format!("wrote {}", p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")),
-                        Instant::now(),
-                        Duration::from_millis(1500),
-                    )),
-                    Err(e) => self.toast = Some((
-                        format!("journal: {e}"),
-                        Instant::now(),
-                        Duration::from_millis(1500),
-                    )),
+                    Ok(p) => {
+                        self.toast = Some((
+                            format!(
+                                "wrote {}",
+                                p.file_name().and_then(|n| n.to_str()).unwrap_or("entry")
+                            ),
+                            Instant::now(),
+                            Duration::from_millis(1500),
+                        ))
+                    }
+                    Err(e) => {
+                        self.toast = Some((
+                            format!("journal: {e}"),
+                            Instant::now(),
+                            Duration::from_millis(1500),
+                        ))
+                    }
                 }
                 self.need_clear = true;
             }
@@ -738,7 +826,11 @@ impl App {
     }
 
     fn set_toast(&mut self, msg: &str, ttl_ms: u64) {
-        self.toast = Some((msg.to_string(), Instant::now(), Duration::from_millis(ttl_ms)));
+        self.toast = Some((
+            msg.to_string(),
+            Instant::now(),
+            Duration::from_millis(ttl_ms),
+        ));
     }
 
     /// Produce a journal seed question: cache hit → immediate; cache miss
@@ -761,13 +853,22 @@ impl App {
             item.kind.display_label(),
             item.body,
         );
-        let opts = ChatOpts { max_tokens: Some(60), temperature: Some(0.5), json_mode: false };
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().ok()?;
-        let result = rt.block_on(async move {
-            post_chat(&client, &config, &system, &user, opts).await
-        }).ok()?;
+        let opts = ChatOpts {
+            max_tokens: Some(60),
+            temperature: Some(0.5),
+            json_mode: false,
+        };
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .ok()?;
+        let result = rt
+            .block_on(async move { post_chat(&client, &config, &system, &user, opts).await })
+            .ok()?;
         let seed = result.trim().to_string();
-        if seed.is_empty() { return None; }
+        if seed.is_empty() {
+            return None;
+        }
         let _ = write_cache_file(&cache_path, &seed);
         Some(seed)
     }
@@ -838,7 +939,10 @@ impl App {
                 if next.is_animated() {
                     let seed = self.next_seed();
                     self.drift = Some(drift::DriftState::with_mode(
-                        size_w, size_h, seed, next.drift_mode(),
+                        size_w,
+                        size_h,
+                        seed,
+                        next.drift_mode(),
                     ));
                 } else {
                     self.drift = None;
@@ -865,8 +969,11 @@ impl App {
                 self.mixer.random_jump(seed);
                 let count = self.mixer.len();
                 self.toast = Some((
-                    format!("Focus: {} · {count} item{}",
-                        next.label(), if count == 1 { "" } else { "s" }),
+                    format!(
+                        "Focus: {} · {count} item{}",
+                        next.label(),
+                        if count == 1 { "" } else { "s" }
+                    ),
                     Instant::now(),
                     Duration::from_millis(2500),
                 ));
@@ -874,7 +981,11 @@ impl App {
             menu::Row::PulseSecs => {
                 let current = self.pulse_secs.map_or(0u64, |d| d.as_secs());
                 let next = pulse::cycle(&menu::PULSE_SECS_RING, current, delta);
-                self.pulse_secs = if next == 0 { None } else { Some(Duration::from_secs(next)) };
+                self.pulse_secs = if next == 0 {
+                    None
+                } else {
+                    Some(Duration::from_secs(next))
+                };
                 self.last_advance = Instant::now();
             }
         }
@@ -887,7 +998,8 @@ impl App {
             self.text_size.label().to_string(),
             self.order.label().to_string(),
             self.focus.label().to_string(),
-            self.pulse_secs.map_or("manual".to_string(), |d| d.as_secs().to_string()),
+            self.pulse_secs
+                .map_or("manual".to_string(), |d| d.as_secs().to_string()),
         ]
     }
 }
@@ -914,9 +1026,8 @@ fn spawn_startup_bill(
 ) {
     let cache_dir = config::config_dir().join("bill");
     tokio::spawn(async move {
-        let bill = pulse::bill::BillReflection::load_or_generate(
-            &cache_dir, &client, &cfg, today,
-        ).await;
+        let bill =
+            pulse::bill::BillReflection::load_or_generate(&cache_dir, &client, &cfg, today).await;
         let _ = tx.send(StartupAi::Bill(Box::new(bill)));
     });
 }
@@ -931,8 +1042,13 @@ fn spawn_startup_community(
     let cache_dir = config::config_dir().join("community");
     tokio::spawn(async move {
         let community = pulse::community::CommunityPulse::load_or_curate(
-            &cache_dir, &client, &cfg, today, reddit_json.as_deref(),
-        ).await;
+            &cache_dir,
+            &client,
+            &cfg,
+            today,
+            reddit_json.as_deref(),
+        )
+        .await;
         let _ = tx.send(StartupAi::Community(Box::new(community)));
     });
 }
@@ -946,9 +1062,9 @@ fn spawn_startup_summary(
 ) {
     let cache_dir = config::config_dir().join("ai_cache").join("summary");
     tokio::spawn(async move {
-        if let Some(line) = pulse::summary::load_or_generate(
-            &cache_dir, &client, &cfg, today, step_of_day,
-        ).await {
+        if let Some(line) =
+            pulse::summary::load_or_generate(&cache_dir, &client, &cfg, today, step_of_day).await
+        {
             let _ = tx.send(StartupAi::Summary(line));
         }
     });
@@ -968,7 +1084,8 @@ pub async fn run(
     let sources: Vec<Box<dyn PulseSource>> = vec![
         Box::new(pulse::today::TodayReadings::from_readings(&readings)),
         Box::new(pulse::historical::HistoricalReadings::load_from(
-            &config::config_dir(), &today_basename,
+            &config::config_dir(),
+            &today_basename,
         )),
         Box::new(pulse::bundled::BigBookQuotes::load()),
         Box::new(pulse::bundled::Prayers::load()),
@@ -976,7 +1093,9 @@ pub async fn run(
         Box::new(pulse::bundled::Traditions::load()),
         Box::new(pulse::bundled::Concepts::load()),
         Box::new(pulse::bundled::Slogans::load()),
-        Box::new(pulse::grapevine::Grapevine::from_html(grapevine_html.as_deref())),
+        Box::new(pulse::grapevine::Grapevine::from_html(
+            grapevine_html.as_deref(),
+        )),
         Box::new(pulse::bill::BillReflection::empty()),
         Box::new(pulse::community::CommunityPulse::empty()),
         Box::new(pulse::favorites::Favorites::load_from(
@@ -1017,7 +1136,10 @@ pub async fn run(
             .map(|d| d.subsec_nanos())
             .unwrap_or(1);
         Some(drift::DriftState::with_mode(
-            initial_size.width, initial_size.height, seed, pattern.drift_mode(),
+            initial_size.width,
+            initial_size.height,
+            seed,
+            pattern.drift_mode(),
         ))
     } else {
         None
@@ -1049,9 +1171,8 @@ pub async fn run(
         favorites: pulse::favorites::Favorites::load_from(
             config::config_dir().join("favorites.json"),
         ),
-        toast: milestones::check(config::sobriety_days()).map(|msg| {
-            (msg.to_string(), Instant::now(), Duration::from_secs(8))
-        }),
+        toast: milestones::check(config::sobriety_days())
+            .map(|msg| (msg.to_string(), Instant::now(), Duration::from_secs(8))),
         ai_overlay: None,
         ai_tx,
         should_quit: false,
@@ -1084,7 +1205,11 @@ pub async fn run(
         let step_of_day = ((chrono::Datelike::day(&today) as u8).wrapping_sub(1) % 12) + 1;
         spawn_startup_bill(client.clone(), cfg.clone(), today, startup_tx.clone());
         spawn_startup_community(
-            client.clone(), cfg.clone(), today, reddit_json, startup_tx.clone(),
+            client.clone(),
+            cfg.clone(),
+            today,
+            reddit_json,
+            startup_tx.clone(),
         );
         spawn_startup_summary(client, cfg.clone(), today, step_of_day, startup_tx);
     }
@@ -1097,7 +1222,9 @@ pub async fn run(
     let mut ticker = interval(Duration::from_millis(FRAME_MS));
 
     loop {
-        if app.should_quit { break; }
+        if app.should_quit {
+            break;
+        }
 
         let size = terminal.size()?;
         // Expire any toast past its TTL.
@@ -1116,7 +1243,9 @@ pub async fn run(
         } else {
             app.palette
         };
-        if idle { eff_palette = eff_palette.dim(IDLE_DIM_FACTOR); }
+        if idle {
+            eff_palette = eff_palette.dim(IDLE_DIM_FACTOR);
+        }
         // View transition: brief dim-to-bright fade after any item swap.
         if let Some(factor) = app.transition_dim() {
             eff_palette = eff_palette.dim(factor);
@@ -1125,8 +1254,16 @@ pub async fn run(
 
         app.last_draw = Instant::now();
         terminal.draw(|f| {
-            let eff_pattern = if app.showcase { pattern::Pattern::None } else { app.pattern };
-            let eff_drift = if app.showcase { None } else { app.drift.as_ref() };
+            let eff_pattern = if app.showcase {
+                pattern::Pattern::None
+            } else {
+                app.pattern
+            };
+            let eff_drift = if app.showcase {
+                None
+            } else {
+                app.drift.as_ref()
+            };
             // Pass the search query so render_pulse can highlight matched
             // chars in the body. Only active when matches exist (submitted
             // search with results); not during live-typing.
@@ -1136,25 +1273,33 @@ pub async fn run(
                 None
             };
             widgets::render_pulse(
-                f, app.mixer.current(), &eff_palette,
-                eff_pattern, eff_drift, app.text_size, app.showcase, hl_query,
+                f,
+                app.mixer.current(),
+                &eff_palette,
+                eff_pattern,
+                eff_drift,
+                app.text_size,
+                app.showcase,
+                hl_query,
             );
             if !app.showcase {
                 let frame_area = f.area();
                 {
                     let buf = f.buffer_mut();
                     status::draw_weather_anchor(
-                        buf, frame_area, &eff_palette, app.weather.as_ref(),
+                        buf,
+                        frame_area,
+                        &eff_palette,
+                        app.weather.as_ref(),
                     );
-                    status::draw_moon_anchor(
-                        buf, frame_area, &eff_palette, app.sobriety_days,
-                    );
+                    status::draw_moon_anchor(buf, frame_area, &eff_palette, app.sobriety_days);
                 }
                 let progress = if app.paused {
                     None
                 } else {
                     app.pulse_secs.map(|interval| {
-                        (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32()).clamp(0.0, 1.0)
+                        (app.last_advance.elapsed().as_secs_f32() / interval.as_secs_f32())
+                            .clamp(0.0, 1.0)
                     })
                 };
                 let toast = app.toast.as_ref().map(|(msg, _, _)| msg.as_str());
@@ -1166,7 +1311,11 @@ pub async fn run(
                     sobriety_days: app.sobriety_days,
                     paused: app.paused,
                     toast,
-                    search_query: if app.search_mode { Some(app.search_query.as_str()) } else { None },
+                    search_query: if app.search_mode {
+                        Some(app.search_query.as_str())
+                    } else {
+                        None
+                    },
                     search_match_count: if app.search_mode || app.search_matches.is_empty() {
                         None
                     } else {
@@ -1241,7 +1390,11 @@ pub async fn run(
     }
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        DisableMouseCapture,
+        LeaveAlternateScreen
+    )?;
     Ok(())
 }
 
@@ -1281,8 +1434,10 @@ mod fuzzy_tests {
         // "pr" at start of word should score higher than "pr" inside one.
         let boundary = fuzzy_score("Serenity Prayer", "pr").unwrap();
         let mid_word = fuzzy_score("approach", "pr").unwrap();
-        assert!(boundary > mid_word,
-            "boundary score {boundary} should beat mid-word {mid_word}");
+        assert!(
+            boundary > mid_word,
+            "boundary score {boundary} should beat mid-word {mid_word}"
+        );
     }
 
     #[test]
@@ -1290,9 +1445,8 @@ mod fuzzy_tests {
         // First-position match gets the prefix bonus; same query landing
         // much later in the string shouldn't.
         let prefix = fuzzy_score("surrender fully", "surr").unwrap();
-        let tail   = fuzzy_score("a long sentence about surrender", "surr").unwrap();
-        assert!(prefix > tail,
-            "prefix {prefix} should beat tail {tail}");
+        let tail = fuzzy_score("a long sentence about surrender", "surr").unwrap();
+        assert!(prefix > tail, "prefix {prefix} should beat tail {tail}");
     }
 }
 
@@ -1302,20 +1456,25 @@ mod tests {
     use crate::models::ClassifiedReading;
 
     fn fixture_app() -> App {
-        let sources: Vec<Box<dyn PulseSource>> = vec![
-            Box::new(pulse::today::TodayReadings::from_readings(&[
+        let sources: Vec<Box<dyn PulseSource>> =
+            vec![Box::new(pulse::today::TodayReadings::from_readings(&[
                 ClassifiedReading {
-                    step: 1, reason: "r".to_string(), source: "src".to_string(),
-                    title: "t".to_string(), text: "today body".to_string(),
+                    step: 1,
+                    reason: "r".to_string(),
+                    source: "src".to_string(),
+                    title: "t".to_string(),
+                    text: "today body".to_string(),
                     url: "http://x".to_string(),
                 },
                 ClassifiedReading {
-                    step: 3, reason: "r".to_string(), source: "src".to_string(),
-                    title: "t".to_string(), text: "another today body".to_string(),
+                    step: 3,
+                    reason: "r".to_string(),
+                    source: "src".to_string(),
+                    title: "t".to_string(),
+                    text: "another today body".to_string(),
                     url: "http://x".to_string(),
                 },
-            ])),
-        ];
+            ]))];
         let mixer = PulseMixer::from_sources(&sources, None, Order::Random);
         App {
             mixer,
@@ -1335,9 +1494,9 @@ mod tests {
             sobriety_days: None,
             paused: false,
             help_open: false,
-            favorites: pulse::favorites::Favorites::load_from(
-                std::path::PathBuf::from("/tmp/iwiywi-test-favorites.json"),
-            ),
+            favorites: pulse::favorites::Favorites::load_from(std::path::PathBuf::from(
+                "/tmp/iwiywi-test-favorites.json",
+            )),
             toast: None,
             ai_overlay: None,
             ai_tx: mpsc::unbounded_channel().0,

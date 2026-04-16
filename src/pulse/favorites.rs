@@ -64,8 +64,12 @@ impl Favorites {
 }
 
 impl PulseSource for Favorites {
-    fn name(&self) -> &'static str { "favorites" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "favorites"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 #[cfg(test)]

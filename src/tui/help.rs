@@ -17,15 +17,24 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
 
     let width: u16 = 52;
     let height: u16 = 22;
-    if area.width < width || area.height < height { return; }
+    if area.width < width || area.height < height {
+        return;
+    }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     // Clear backing so the help panel sits on solid ground.
     for row_y in rect.y..rect.y + rect.height {
         for col_x in rect.x..rect.x + rect.width {
-            buf[(col_x, row_y)].set_symbol(" ").set_style(Style::default());
+            buf[(col_x, row_y)]
+                .set_symbol(" ")
+                .set_style(Style::default());
         }
     }
 
@@ -63,7 +72,9 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         lines.push(Line::from(vec![
             Span::styled(
                 format!("  {:<11}", key),
-                Style::default().fg(palette.accent).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(palette.accent)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled((*desc).to_string(), Style::default().fg(palette.body)),
         ]));

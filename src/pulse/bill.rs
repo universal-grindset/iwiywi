@@ -49,7 +49,9 @@ impl BillReflection {
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn load_from(cache_dir: &Path, today: NaiveDate) -> Self {
         match read_cached(cache_dir, today) {
-            Some(entry) => Self { items: vec![build_item(&entry)] },
+            Some(entry) => Self {
+                items: vec![build_item(&entry)],
+            },
             None => Self::empty(),
         }
     }
@@ -63,14 +65,22 @@ impl BillReflection {
         today: NaiveDate,
     ) -> Self {
         if let Some(entry) = read_cached(cache_dir, today) {
-            return Self { items: vec![build_item(&entry)] };
+            return Self {
+                items: vec![build_item(&entry)],
+            };
         }
         let step = step_of_day(today);
         match generate(client, config, today, step).await {
             Ok(text) => {
-                let entry = CacheEntry { date: today.to_string(), step, text };
+                let entry = CacheEntry {
+                    date: today.to_string(),
+                    step,
+                    text,
+                };
                 let _ = write_cache(cache_dir, today, &entry);
-                Self { items: vec![build_item(&entry)] }
+                Self {
+                    items: vec![build_item(&entry)],
+                }
             }
             Err(_) => Self::empty(),
         }
@@ -78,8 +88,12 @@ impl BillReflection {
 }
 
 impl PulseSource for BillReflection {
-    fn name(&self) -> &'static str { "bill" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "bill"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 fn cache_path(cache_dir: &Path, today: NaiveDate) -> PathBuf {
@@ -116,12 +130,7 @@ fn build_item(entry: &CacheEntry) -> PulseItem {
     }
 }
 
-async fn generate(
-    client: &Client,
-    config: &Config,
-    today: NaiveDate,
-    step: u8,
-) -> Result<String> {
+async fn generate(client: &Client, config: &Config, today: NaiveDate, step: u8) -> Result<String> {
     let user = format!(
         "Write today's reflection. Today's date is {today}. \
          Center it on the theme of Step {step}, but do not name the step or quote step texts. \

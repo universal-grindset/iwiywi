@@ -3,11 +3,7 @@
 //! fading trail. Purely decorative — no timing, no text, no interaction.
 
 use noise::{NoiseFn, Perlin};
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::Style,
-};
+use ratatui::{buffer::Buffer, layout::Rect, style::Style};
 use std::time::Instant;
 
 use crate::tui::palette::Palette;
@@ -34,9 +30,18 @@ pub enum Mode {
 }
 
 const VOCABULARY: [&str; 12] = [
-    "SURRENDER", "WILLINGNESS", "HOPE", "FAITH",
-    "SERVICE", "GRATITUDE", "PATIENCE", "HUMILITY",
-    "COURAGE", "HONESTY", "ACCEPTANCE", "SERENITY",
+    "SURRENDER",
+    "WILLINGNESS",
+    "HOPE",
+    "FAITH",
+    "SERVICE",
+    "GRATITUDE",
+    "PATIENCE",
+    "HUMILITY",
+    "COURAGE",
+    "HONESTY",
+    "ACCEPTANCE",
+    "SERENITY",
 ];
 
 pub struct Particle {
@@ -66,10 +71,16 @@ fn pseudo_rand(seed: u32, n: usize) -> f32 {
 }
 
 fn wrap(v: f32, max: f32) -> f32 {
-    if max <= 0.0 { return 0.0; }
+    if max <= 0.0 {
+        return 0.0;
+    }
     let mut r = v % max;
-    if r < 0.0 { r += max; }
-    if r >= max { r -= max; }
+    if r < 0.0 {
+        r += max;
+    }
+    if r >= max {
+        r -= max;
+    }
     r
 }
 
@@ -97,7 +108,9 @@ impl DriftState {
     }
 
     pub fn tick(&mut self, width: u16, height: u16) {
-        if width == 0 || height == 0 { return; }
+        if width == 0 || height == 0 {
+            return;
+        }
         let t = self.start.elapsed().as_secs_f64();
         for (idx, p) in self.particles.iter_mut().enumerate() {
             p.trail[3] = p.trail[2];
@@ -142,7 +155,6 @@ impl DriftState {
             p.y = wrap(p.y + vy, height as f32);
         }
     }
-
 }
 
 /// Draw the particles + trails into the buffer. Skips rendering when the
@@ -150,7 +162,9 @@ impl DriftState {
 /// segments: newest two are drawn in the palette accent, oldest two in the
 /// muted color, giving each particle visible momentum.
 pub fn draw(buf: &mut Buffer, area: Rect, state: &DriftState, palette: &Palette) {
-    if area.width < 40 || area.height < 15 { return; }
+    if area.width < 40 || area.height < 15 {
+        return;
+    }
     let bright_style = Style::default().fg(palette.accent);
     let dim_style = Style::default().fg(palette.muted);
     let is_words = state.mode == Mode::Words;
@@ -195,7 +209,9 @@ mod tests {
     #[test]
     fn particles_stay_in_bounds_after_ticks() {
         let mut s = DriftState::new(80, 24, 1);
-        for _ in 0..200 { s.tick(80, 24); }
+        for _ in 0..200 {
+            s.tick(80, 24);
+        }
         for p in &s.particles {
             assert!(p.x >= 0.0 && p.x < 80.0);
             assert!(p.y >= 0.0 && p.y < 24.0);

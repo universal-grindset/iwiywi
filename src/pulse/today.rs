@@ -21,8 +21,12 @@ impl TodayReadings {
 }
 
 impl PulseSource for TodayReadings {
-    fn name(&self) -> &'static str { "today" }
-    fn items(&self) -> &[PulseItem] { &self.items }
+    fn name(&self) -> &'static str {
+        "today"
+    }
+    fn items(&self) -> &[PulseItem] {
+        &self.items
+    }
 }
 
 #[cfg(test)]
@@ -52,10 +56,7 @@ mod tests {
 
     #[test]
     fn today_preserves_order() {
-        let src = TodayReadings::from_readings(&[
-            r(1, "A", "alpha"),
-            r(7, "B", "bravo"),
-        ]);
+        let src = TodayReadings::from_readings(&[r(1, "A", "alpha"), r(7, "B", "bravo")]);
         assert_eq!(src.items()[0].body, "alpha");
         assert_eq!(src.items()[1].body, "bravo");
     }

@@ -49,7 +49,10 @@ pub async fn run(config: &Config) -> Result<()> {
     }
 
     write_readings(&classified).context("writing readings to disk")?;
-    println!("Saved readings to {}", crate::storage::readings_path().display());
+    println!(
+        "Saved readings to {}",
+        crate::storage::readings_path().display()
+    );
 
     Ok(())
 }

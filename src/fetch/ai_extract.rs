@@ -62,9 +62,7 @@ pub fn strip_html_to_text(html: &str) -> String {
     for body in doc.select(&body_sel) {
         let skip_ids: std::collections::HashSet<_> = body
             .select(&script_sel)
-            .flat_map(|el| {
-                std::iter::once(el.id()).chain(el.descendants().map(|d| d.id()))
-            })
+            .flat_map(|el| std::iter::once(el.id()).chain(el.descendants().map(|d| d.id())))
             .collect();
 
         for node_ref in body.descendants() {

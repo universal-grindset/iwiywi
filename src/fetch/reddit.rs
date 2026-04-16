@@ -25,7 +25,9 @@ pub async fn fetch_community_json() -> Option<String> {
             }
         }
     }
-    if children.is_empty() { return None; }
+    if children.is_empty() {
+        return None;
+    }
 
     let envelope = json!({ "data": { "children": children } });
     serde_json::to_string(&envelope).ok()
@@ -39,6 +41,8 @@ async fn fetch_one(client: &Client, sub: &str) -> Option<Value> {
         .send()
         .await
         .ok()?;
-    if !resp.status().is_success() { return None; }
+    if !resp.status().is_success() {
+        return None;
+    }
     resp.json::<Value>().await.ok()
 }

@@ -24,27 +24,27 @@ impl TextSize {
 
     pub fn label(&self) -> &'static str {
         match self {
-            TextSize::Small  => "small",
+            TextSize::Small => "small",
             TextSize::Normal => "normal",
-            TextSize::Large  => "large",
+            TextSize::Large => "large",
         }
     }
 
     /// Width ratio applied to the viewport when computing the text column.
     pub fn width_ratio(&self) -> f32 {
         match self {
-            TextSize::Small  => 0.55,
+            TextSize::Small => 0.55,
             TextSize::Normal => 0.70,
-            TextSize::Large  => 0.85,
+            TextSize::Large => 0.85,
         }
     }
 
     /// `(min, max)` clamp for the text column width in cells.
     pub fn width_clamp(&self) -> (f32, f32) {
         match self {
-            TextSize::Small  => (20.0, 52.0),
+            TextSize::Small => (20.0, 52.0),
             TextSize::Normal => (20.0, 72.0),
-            TextSize::Large  => (30.0, 96.0),
+            TextSize::Large => (30.0, 96.0),
         }
     }
 
@@ -52,9 +52,9 @@ impl TextSize {
     /// bold so it reads heavier even at the same cell size.
     pub fn body_modifier(&self) -> Modifier {
         match self {
-            TextSize::Small  => Modifier::empty(),
+            TextSize::Small => Modifier::empty(),
             TextSize::Normal => Modifier::empty(),
-            TextSize::Large  => Modifier::BOLD,
+            TextSize::Large => Modifier::BOLD,
         }
     }
 }

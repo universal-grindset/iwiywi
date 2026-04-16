@@ -18,11 +18,7 @@ pub fn list_entries(journal_dir: &Path) -> Vec<JournalEntry> {
     };
     let mut entries: Vec<JournalEntry> = rd
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .is_some_and(|ext| ext == "md")
-        })
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
         .filter_map(|e| {
             let filename = e.file_name().to_string_lossy().to_string();
             let content = std::fs::read_to_string(e.path()).ok()?;
@@ -72,7 +68,11 @@ mod tests {
     #[test]
     fn preview_extracts_first_content_line() {
         let dir = tempdir().unwrap();
-        std::fs::write(dir.path().join("2026-04-15.md"), "# Title\n\n_Reflection prompt_\n\nMy notes here.").unwrap();
+        std::fs::write(
+            dir.path().join("2026-04-15.md"),
+            "# Title\n\n_Reflection prompt_\n\nMy notes here.",
+        )
+        .unwrap();
         let entries = list_entries(dir.path());
         assert!(entries[0].preview.contains("Reflection prompt"));
     }

@@ -2,14 +2,14 @@
 //! anniversaries with a special toast message. Checked once at startup.
 
 const MILESTONES: &[(i64, &str)] = &[
-    (1,    "Day 1. You showed up. That's everything."),
-    (7,    "One week. Seven days of choosing differently."),
-    (30,   "30 days. A month of surrender."),
-    (60,   "60 days. The fog is lifting."),
-    (90,   "90 days. You've built a foundation."),
-    (180,  "Six months. Half a year of freedom."),
-    (365,  "One year. A miracle happened here."),
-    (730,  "Two years. Service flows through you now."),
+    (1, "Day 1. You showed up. That's everything."),
+    (7, "One week. Seven days of choosing differently."),
+    (30, "30 days. A month of surrender."),
+    (60, "60 days. The fog is lifting."),
+    (90, "90 days. You've built a foundation."),
+    (180, "Six months. Half a year of freedom."),
+    (365, "One year. A miracle happened here."),
+    (730, "Two years. Service flows through you now."),
     (1095, "Three years. You carry the message."),
     (1825, "Five years. Living proof that it works."),
     (3650, "Ten years. A life rebuilt, one day at a time."),

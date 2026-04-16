@@ -16,17 +16,21 @@ use crate::tui::pattern::{self, Pattern};
 use crate::tui::text_size::TextSize;
 
 fn render_too_small(buf: &mut Buffer, area: ratatui::layout::Rect, palette: &Palette) {
-    let msg = format!(
-        "terminal too small\nneed at least {MIN_WIDTH}×{MIN_HEIGHT} cells"
-    );
+    let msg = format!("terminal too small\nneed at least {MIN_WIDTH}×{MIN_HEIGHT} cells");
     let y = area.y + area.height / 2;
     let h = 2u16;
     let rect = ratatui::layout::Rect {
-        x: area.x, y: y.saturating_sub(1),
-        width: area.width, height: h.min(area.height),
+        x: area.x,
+        y: y.saturating_sub(1),
+        width: area.width,
+        height: h.min(area.height),
     };
     Paragraph::new(msg)
-        .style(Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC))
+        .style(
+            Style::default()
+                .fg(palette.muted)
+                .add_modifier(Modifier::ITALIC),
+        )
         .alignment(Alignment::Center)
         .render(rect, buf);
 }
@@ -57,7 +61,9 @@ pub fn render_pulse(
         return;
     }
 
-    let Some(item) = item else { return; };
+    let Some(item) = item else {
+        return;
+    };
 
     // Showcase mode takes over the whole frame: wider text column, larger
     // clamp ceiling, bold body. The caller still passes a TextSize but we
@@ -84,7 +90,12 @@ pub fn render_pulse(
 
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(total_height)) / 2;
-    let text_rect = Rect { x, y, width, height: total_height };
+    let text_rect = Rect {
+        x,
+        y,
+        width,
+        height: total_height,
+    };
 
     // Static patterns (none/dots/frame/rule) draw here. Drift is animated
     // and needs live state; it draws below when present. Frame-family
@@ -98,11 +109,15 @@ pub fn render_pulse(
 
     let label = Line::from(Span::styled(
         item.label.clone(),
-        Style::default().fg(palette.accent).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(palette.accent)
+            .add_modifier(Modifier::BOLD),
     ));
     let kind = Line::from(Span::styled(
         item.kind.display_label().to_string(),
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     ));
     let body_modifier = if showcase {
         Modifier::BOLD
@@ -118,7 +133,9 @@ pub fn render_pulse(
         Some(q) => highlight_fuzzy(&item.body, q, palette, body_modifier),
         None => Line::from(Span::styled(
             item.body.clone(),
-            Style::default().fg(palette.body).add_modifier(body_modifier),
+            Style::default()
+                .fg(palette.body)
+                .add_modifier(body_modifier),
         )),
     };
 
@@ -130,12 +147,7 @@ pub fn render_pulse(
 /// Build a `Line` with accent-colored spans for chars that match the
 /// fuzzy query and default-colored spans for everything else. Walks the
 /// body and query in order (same subsequence logic as `fuzzy_score`).
-fn highlight_fuzzy<'a>(
-    body: &str,
-    query: &str,
-    palette: &Palette,
-    modifier: Modifier,
-) -> Line<'a> {
+fn highlight_fuzzy<'a>(body: &str, query: &str, palette: &Palette, modifier: Modifier) -> Line<'a> {
     let body_lower: Vec<char> = body.to_lowercase().chars().collect();
     let needle: Vec<char> = query.to_lowercase().chars().collect();
     let body_chars: Vec<char> = body.chars().collect();

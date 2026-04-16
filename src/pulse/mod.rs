@@ -41,19 +41,19 @@ pub enum PulseKind {
 impl PulseKind {
     pub fn display_label(&self) -> &'static str {
         match self {
-            PulseKind::TodayReading      => "Today",
+            PulseKind::TodayReading => "Today",
             PulseKind::HistoricalReading => "From the archive",
-            PulseKind::BigBookQuote      => "Big Book",
-            PulseKind::Prayer            => "Prayer",
-            PulseKind::StepText          => "Step",
-            PulseKind::Principle         => "Principle",
-            PulseKind::Tradition         => "Tradition",
-            PulseKind::Concept           => "Concept",
-            PulseKind::Slogan            => "Slogan",
-            PulseKind::Grapevine         => "Grapevine",
-            PulseKind::Favorite          => "Favorite",
-            PulseKind::BillReflection    => "Bill W. — AI reflection",
-            PulseKind::Community         => "From the rooms (paraphrased)",
+            PulseKind::BigBookQuote => "Big Book",
+            PulseKind::Prayer => "Prayer",
+            PulseKind::StepText => "Step",
+            PulseKind::Principle => "Principle",
+            PulseKind::Tradition => "Tradition",
+            PulseKind::Concept => "Concept",
+            PulseKind::Slogan => "Slogan",
+            PulseKind::Grapevine => "Grapevine",
+            PulseKind::Favorite => "Favorite",
+            PulseKind::BillReflection => "Bill W. — AI reflection",
+            PulseKind::Community => "From the rooms (paraphrased)",
         }
     }
 
@@ -65,19 +65,19 @@ impl PulseKind {
     pub fn frame_tint(&self) -> ratatui::style::Color {
         use ratatui::style::Color;
         match self {
-            PulseKind::TodayReading      => Color::Rgb(0x88, 0xA8, 0xD0), // cool blue
+            PulseKind::TodayReading => Color::Rgb(0x88, 0xA8, 0xD0), // cool blue
             PulseKind::HistoricalReading => Color::Rgb(0x78, 0x70, 0x80), // archival grey
-            PulseKind::BigBookQuote      => Color::Rgb(0xC4, 0x9A, 0x47), // warm gold
-            PulseKind::Prayer            => Color::Rgb(0x7E, 0x95, 0xBF), // dusty blue
-            PulseKind::StepText          => Color::Rgb(0x9C, 0x7A, 0xCC), // step purple
-            PulseKind::Principle         => Color::Rgb(0x8A, 0xA3, 0x73), // sage
-            PulseKind::Tradition         => Color::Rgb(0x7A, 0x9E, 0xA3), // teal
-            PulseKind::Concept           => Color::Rgb(0xA0, 0x7A, 0x5E), // sandstone
-            PulseKind::Slogan            => Color::Rgb(0xD9, 0x7F, 0x5A), // coral
-            PulseKind::Grapevine         => Color::Rgb(0x7C, 0xB2, 0x72), // magazine green
-            PulseKind::Favorite          => Color::Rgb(0xE6, 0xA1, 0xA1), // soft pink
-            PulseKind::BillReflection    => Color::Rgb(0x96, 0x73, 0xB3), // amethyst
-            PulseKind::Community         => Color::Rgb(0x6A, 0xAC, 0x9E), // seafoam
+            PulseKind::BigBookQuote => Color::Rgb(0xC4, 0x9A, 0x47), // warm gold
+            PulseKind::Prayer => Color::Rgb(0x7E, 0x95, 0xBF),       // dusty blue
+            PulseKind::StepText => Color::Rgb(0x9C, 0x7A, 0xCC),     // step purple
+            PulseKind::Principle => Color::Rgb(0x8A, 0xA3, 0x73),    // sage
+            PulseKind::Tradition => Color::Rgb(0x7A, 0x9E, 0xA3),    // teal
+            PulseKind::Concept => Color::Rgb(0xA0, 0x7A, 0x5E),      // sandstone
+            PulseKind::Slogan => Color::Rgb(0xD9, 0x7F, 0x5A),       // coral
+            PulseKind::Grapevine => Color::Rgb(0x7C, 0xB2, 0x72),    // magazine green
+            PulseKind::Favorite => Color::Rgb(0xE6, 0xA1, 0xA1),     // soft pink
+            PulseKind::BillReflection => Color::Rgb(0x96, 0x73, 0xB3), // amethyst
+            PulseKind::Community => Color::Rgb(0x6A, 0xAC, 0x9E),    // seafoam
         }
     }
 }
@@ -105,24 +105,28 @@ pub enum Order {
 }
 
 impl Order {
-    pub const ALL: [Order; 4] =
-        [Order::Random, Order::Sequential, Order::ByStep, Order::BySource];
+    pub const ALL: [Order; 4] = [
+        Order::Random,
+        Order::Sequential,
+        Order::ByStep,
+        Order::BySource,
+    ];
 
     pub fn parse(raw: Option<&str>) -> Order {
         match raw {
             Some("sequential") => Order::Sequential,
-            Some("by-step")    => Order::ByStep,
-            Some("by-source")  => Order::BySource,
+            Some("by-step") => Order::ByStep,
+            Some("by-source") => Order::BySource,
             _ => Order::Random,
         }
     }
 
     pub fn label(&self) -> &'static str {
         match self {
-            Order::Random     => "random",
+            Order::Random => "random",
             Order::Sequential => "sequential",
-            Order::ByStep     => "by-step",
-            Order::BySource   => "by-source",
+            Order::ByStep => "by-step",
+            Order::BySource => "by-source",
         }
     }
 }
@@ -149,65 +153,79 @@ pub enum Focus {
     Bill,
     Community,
     // Content-based: admit all sources but post-filter individual items.
-    Short,        // body < 220 chars (quick reads)
-    Long,         // body > 420 chars (deeper meditations)
-    Surrender,    // step 1–3
-    Action,       // step 4–9
-    Maintenance,  // step 10–12
+    Short,       // body < 220 chars (quick reads)
+    Long,        // body > 420 chars (deeper meditations)
+    Surrender,   // step 1–3
+    Action,      // step 4–9
+    Maintenance, // step 10–12
 }
 
 impl Focus {
     pub const ALL_VARIANTS: [Focus; 19] = [
-        Focus::All, Focus::Today, Focus::History, Focus::BigBook, Focus::Prayers,
-        Focus::Steps, Focus::Principles, Focus::Grapevine, Focus::Traditions,
-        Focus::Concepts, Focus::Slogans, Focus::Favorites, Focus::Bill, Focus::Community,
-        Focus::Short, Focus::Long,
-        Focus::Surrender, Focus::Action, Focus::Maintenance,
+        Focus::All,
+        Focus::Today,
+        Focus::History,
+        Focus::BigBook,
+        Focus::Prayers,
+        Focus::Steps,
+        Focus::Principles,
+        Focus::Grapevine,
+        Focus::Traditions,
+        Focus::Concepts,
+        Focus::Slogans,
+        Focus::Favorites,
+        Focus::Bill,
+        Focus::Community,
+        Focus::Short,
+        Focus::Long,
+        Focus::Surrender,
+        Focus::Action,
+        Focus::Maintenance,
     ];
 
     pub fn label(&self) -> &'static str {
         match self {
-            Focus::All         => "all",
-            Focus::Today       => "today",
-            Focus::History     => "history",
-            Focus::BigBook     => "big_book",
-            Focus::Prayers     => "prayers",
-            Focus::Steps       => "steps",
-            Focus::Principles  => "principles",
-            Focus::Grapevine   => "grapevine",
-            Focus::Traditions  => "traditions",
-            Focus::Concepts    => "concepts",
-            Focus::Slogans     => "slogans",
-            Focus::Favorites   => "favorites",
-            Focus::Bill        => "bill",
-            Focus::Community   => "community",
-            Focus::Short       => "short",
-            Focus::Long        => "long",
-            Focus::Surrender   => "surrender",
-            Focus::Action      => "action",
+            Focus::All => "all",
+            Focus::Today => "today",
+            Focus::History => "history",
+            Focus::BigBook => "big_book",
+            Focus::Prayers => "prayers",
+            Focus::Steps => "steps",
+            Focus::Principles => "principles",
+            Focus::Grapevine => "grapevine",
+            Focus::Traditions => "traditions",
+            Focus::Concepts => "concepts",
+            Focus::Slogans => "slogans",
+            Focus::Favorites => "favorites",
+            Focus::Bill => "bill",
+            Focus::Community => "community",
+            Focus::Short => "short",
+            Focus::Long => "long",
+            Focus::Surrender => "surrender",
+            Focus::Action => "action",
             Focus::Maintenance => "maintenance",
         }
     }
 
     pub fn parse(raw: Option<&str>) -> Focus {
         match raw {
-            Some("today")       => Focus::Today,
-            Some("history")     => Focus::History,
-            Some("big_book")    => Focus::BigBook,
-            Some("prayers")     => Focus::Prayers,
-            Some("steps")       => Focus::Steps,
-            Some("principles")  => Focus::Principles,
-            Some("grapevine")   => Focus::Grapevine,
-            Some("traditions")  => Focus::Traditions,
-            Some("concepts")    => Focus::Concepts,
-            Some("slogans")     => Focus::Slogans,
-            Some("favorites")   => Focus::Favorites,
-            Some("bill")        => Focus::Bill,
-            Some("community")   => Focus::Community,
-            Some("short")       => Focus::Short,
-            Some("long")        => Focus::Long,
-            Some("surrender")   => Focus::Surrender,
-            Some("action")      => Focus::Action,
+            Some("today") => Focus::Today,
+            Some("history") => Focus::History,
+            Some("big_book") => Focus::BigBook,
+            Some("prayers") => Focus::Prayers,
+            Some("steps") => Focus::Steps,
+            Some("principles") => Focus::Principles,
+            Some("grapevine") => Focus::Grapevine,
+            Some("traditions") => Focus::Traditions,
+            Some("concepts") => Focus::Concepts,
+            Some("slogans") => Focus::Slogans,
+            Some("favorites") => Focus::Favorites,
+            Some("bill") => Focus::Bill,
+            Some("community") => Focus::Community,
+            Some("short") => Focus::Short,
+            Some("long") => Focus::Long,
+            Some("surrender") => Focus::Surrender,
+            Some("action") => Focus::Action,
             Some("maintenance") => Focus::Maintenance,
             _ => Focus::All,
         }
@@ -218,23 +236,24 @@ impl Focus {
     /// item level via `admits_item`.
     pub fn admits(&self, source_name: &str) -> bool {
         match self {
-            Focus::All         => true,
-            Focus::Today       => source_name == "today",
-            Focus::History     => source_name == "historical",
-            Focus::BigBook     => source_name == "big_book",
-            Focus::Prayers     => source_name == "prayers",
+            Focus::All => true,
+            Focus::Today => source_name == "today",
+            Focus::History => source_name == "historical",
+            Focus::BigBook => source_name == "big_book",
+            Focus::Prayers => source_name == "prayers",
             Focus::Steps | Focus::Principles => source_name == "step_explainers",
-            Focus::Grapevine   => source_name == "grapevine",
-            Focus::Traditions  => source_name == "traditions",
-            Focus::Concepts    => source_name == "concepts",
-            Focus::Slogans     => source_name == "slogans",
-            Focus::Favorites   => source_name == "favorites",
-            Focus::Bill        => source_name == "bill",
-            Focus::Community   => source_name == "community",
+            Focus::Grapevine => source_name == "grapevine",
+            Focus::Traditions => source_name == "traditions",
+            Focus::Concepts => source_name == "concepts",
+            Focus::Slogans => source_name == "slogans",
+            Focus::Favorites => source_name == "favorites",
+            Focus::Bill => source_name == "bill",
+            Focus::Community => source_name == "community",
             // Content-based focuses let every source through; the item
             // filter is the one that narrows the pool.
-            Focus::Short | Focus::Long
-                | Focus::Surrender | Focus::Action | Focus::Maintenance => true,
+            Focus::Short | Focus::Long | Focus::Surrender | Focus::Action | Focus::Maintenance => {
+                true
+            }
         }
     }
 
@@ -243,9 +262,9 @@ impl Focus {
     pub fn admits_item(&self, item: &PulseItem) -> bool {
         match self {
             Focus::Short => item.body.chars().count() < 220,
-            Focus::Long  => item.body.chars().count() > 420,
-            Focus::Surrender   => item.step.is_some_and(|s| (1..=3).contains(&s)),
-            Focus::Action      => item.step.is_some_and(|s| (4..=9).contains(&s)),
+            Focus::Long => item.body.chars().count() > 420,
+            Focus::Surrender => item.step.is_some_and(|s| (1..=3).contains(&s)),
+            Focus::Action => item.step.is_some_and(|s| (4..=9).contains(&s)),
             Focus::Maintenance => item.step.is_some_and(|s| (10..=12).contains(&s)),
             _ => true,
         }
@@ -286,16 +305,22 @@ impl PulseMixer {
         let mut seen: std::collections::HashSet<[u8; 32]> = std::collections::HashSet::new();
         for src in sources.iter().filter(|s| focus.admits(s.name())) {
             for item in src.items() {
-                if !focus.admits_item(item) { continue; }
+                if !focus.admits_item(item) {
+                    continue;
+                }
                 if let Some(want) = filter_step {
-                    if item.step != Some(want) { continue; }
+                    if item.step != Some(want) {
+                        continue;
+                    }
                 }
                 let mut hasher = Sha256::new();
                 hasher.update(src.name().as_bytes());
                 hasher.update([0u8]);
                 hasher.update(item.body.as_bytes());
                 let digest: [u8; 32] = hasher.finalize().into();
-                if seen.insert(digest) { items.push(item.clone()); }
+                if seen.insert(digest) {
+                    items.push(item.clone());
+                }
             }
         }
         match order {
@@ -316,12 +341,20 @@ impl PulseMixer {
     // today only by tests, but kept available for future callers (debug UI,
     // logging, alternate cyclers).
     #[allow(dead_code)]
-    pub fn len(&self) -> usize { self.items.len() }
-    pub fn is_empty(&self) -> bool { self.items.is_empty() }
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
     #[allow(dead_code)]
-    pub fn cursor(&self) -> usize { self.cursor }
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
     #[allow(dead_code)]
-    pub fn all(&self) -> &[PulseItem] { &self.items }
+    pub fn all(&self) -> &[PulseItem] {
+        &self.items
+    }
 
     pub fn current(&self) -> Option<&PulseItem> {
         self.items.get(self.cursor)
@@ -349,7 +382,9 @@ impl PulseMixer {
             return;
         }
         // Same xorshift-mult hash as drift::pseudo_rand for determinism.
-        let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(self.cursor as u32);
+        let mut x = seed
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(self.cursor as u32);
         x ^= x >> 13;
         x = x.wrapping_mul(0x5bd1e995);
         x ^= x >> 15;
@@ -378,12 +413,14 @@ mod tests {
     #[test]
     fn short_focus_keeps_only_brief_items() {
         let short = PulseItem {
-            kind: PulseKind::Prayer, step: None,
+            kind: PulseKind::Prayer,
+            step: None,
             label: "L".to_string(),
             body: "Be still.".to_string(),
         };
         let long = PulseItem {
-            kind: PulseKind::Prayer, step: None,
+            kind: PulseKind::Prayer,
+            step: None,
             label: "L".to_string(),
             body: "x".repeat(500),
         };
@@ -394,12 +431,14 @@ mod tests {
     #[test]
     fn long_focus_keeps_only_lengthy_items() {
         let short = PulseItem {
-            kind: PulseKind::Prayer, step: None,
+            kind: PulseKind::Prayer,
+            step: None,
             label: "L".to_string(),
             body: "Be still.".to_string(),
         };
         let long = PulseItem {
-            kind: PulseKind::Prayer, step: None,
+            kind: PulseKind::Prayer,
+            step: None,
             label: "L".to_string(),
             body: "x".repeat(500),
         };
@@ -411,15 +450,19 @@ mod tests {
     fn step_group_focuses_partition_steps_1_through_12() {
         for n in 1..=12u8 {
             let item = PulseItem {
-                kind: PulseKind::StepText, step: Some(n),
-                label: "L".to_string(), body: "b".to_string(),
+                kind: PulseKind::StepText,
+                step: Some(n),
+                label: "L".to_string(),
+                body: "b".to_string(),
             };
             let surrender = Focus::Surrender.admits_item(&item);
-            let action    = Focus::Action.admits_item(&item);
-            let maintain  = Focus::Maintenance.admits_item(&item);
+            let action = Focus::Action.admits_item(&item);
+            let maintain = Focus::Maintenance.admits_item(&item);
             // Exactly one group must accept each step.
             let count = [surrender, action, maintain]
-                .into_iter().filter(|b| *b).count();
+                .into_iter()
+                .filter(|b| *b)
+                .count();
             assert_eq!(count, 1, "step {n} matched {count} groups, want 1");
         }
     }
@@ -427,8 +470,10 @@ mod tests {
     #[test]
     fn content_focuses_reject_items_without_step_for_step_groups() {
         let nostep = PulseItem {
-            kind: PulseKind::Prayer, step: None,
-            label: "L".to_string(), body: "b".to_string(),
+            kind: PulseKind::Prayer,
+            step: None,
+            label: "L".to_string(),
+            body: "b".to_string(),
         };
         assert!(!Focus::Surrender.admits_item(&nostep));
         assert!(!Focus::Action.admits_item(&nostep));
@@ -477,19 +522,31 @@ mod tests {
         items: Vec<PulseItem>,
     }
     impl PulseSource for StubSource {
-        fn name(&self) -> &'static str { self.name }
-        fn items(&self) -> &[PulseItem] { &self.items }
+        fn name(&self) -> &'static str {
+            self.name
+        }
+        fn items(&self) -> &[PulseItem] {
+            &self.items
+        }
     }
 
     fn item(kind: PulseKind, step: Option<u8>, body: &str) -> PulseItem {
-        PulseItem { kind, step, label: "label".to_string(), body: body.to_string() }
+        PulseItem {
+            kind,
+            step,
+            label: "label".to_string(),
+            body: body.to_string(),
+        }
     }
 
     #[test]
     fn mixer_collects_items_from_all_sources() {
         let s1: Box<dyn PulseSource> = Box::new(StubSource {
             name: "s1",
-            items: vec![item(PulseKind::TodayReading, Some(1), "a"), item(PulseKind::TodayReading, Some(2), "b")],
+            items: vec![
+                item(PulseKind::TodayReading, Some(1), "a"),
+                item(PulseKind::TodayReading, Some(2), "b"),
+            ],
         });
         let s2: Box<dyn PulseSource> = Box::new(StubSource {
             name: "s2",
@@ -517,8 +574,15 @@ mod tests {
         let third = mixer.current().unwrap().body.clone();
         mixer.advance();
         let wrapped = mixer.current().unwrap().body.clone();
-        assert_eq!([first.as_str(), second.as_str(), third.as_str(), wrapped.as_str()],
-                   ["x", "y", "z", "x"]);
+        assert_eq!(
+            [
+                first.as_str(),
+                second.as_str(),
+                third.as_str(),
+                wrapped.as_str()
+            ],
+            ["x", "y", "z", "x"]
+        );
     }
 
     #[test]
@@ -557,7 +621,9 @@ mod tests {
     fn mixer_random_jump_changes_cursor_position() {
         let s: Box<dyn PulseSource> = Box::new(StubSource {
             name: "s",
-            items: (0..50).map(|n| item(PulseKind::TodayReading, None, &n.to_string())).collect(),
+            items: (0..50)
+                .map(|n| item(PulseKind::TodayReading, None, &n.to_string()))
+                .collect(),
         });
         let mut mixer = PulseMixer::from_sources(&[s], None, Order::Random);
         let start = mixer.cursor();
@@ -576,7 +642,10 @@ mod tests {
     #[test]
     fn pulse_kind_display_labels_are_user_friendly() {
         assert_eq!(PulseKind::TodayReading.display_label(), "Today");
-        assert_eq!(PulseKind::HistoricalReading.display_label(), "From the archive");
+        assert_eq!(
+            PulseKind::HistoricalReading.display_label(),
+            "From the archive"
+        );
         assert_eq!(PulseKind::BigBookQuote.display_label(), "Big Book");
         assert_eq!(PulseKind::Prayer.display_label(), "Prayer");
         assert_eq!(PulseKind::StepText.display_label(), "Step");
@@ -619,7 +688,9 @@ mod tests {
     fn advance_per_order_random_uses_random_jump() {
         let s: Box<dyn PulseSource> = Box::new(StubSource {
             name: "s",
-            items: (0..50).map(|n| item(PulseKind::TodayReading, None, &n.to_string())).collect(),
+            items: (0..50)
+                .map(|n| item(PulseKind::TodayReading, None, &n.to_string()))
+                .collect(),
         });
         let mut mixer = PulseMixer::from_sources(&[s], None, Order::Random);
         let start = mixer.cursor();

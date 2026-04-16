@@ -64,8 +64,12 @@ impl AiOverlay {
         }
     }
 
-    pub fn scroll_down(&mut self) { self.scroll = self.scroll.saturating_add(1); }
-    pub fn scroll_up(&mut self)   { self.scroll = self.scroll.saturating_sub(1); }
+    pub fn scroll_down(&mut self) {
+        self.scroll = self.scroll.saturating_add(1);
+    }
+    pub fn scroll_up(&mut self) {
+        self.scroll = self.scroll.saturating_sub(1);
+    }
 
     /// Rough upper bound on the scroll offset: one hard-break line per `\n`
     /// plus a word-wrap allowance. Called during render with the viewport
@@ -78,7 +82,9 @@ impl AiOverlay {
             lines = lines.saturating_add(n.div_ceil(w).max(1) as u16);
         }
         let max_scroll = lines.saturating_sub(viewport_height.max(1));
-        if self.scroll > max_scroll { self.scroll = max_scroll; }
+        if self.scroll > max_scroll {
+            self.scroll = max_scroll;
+        }
     }
 }
 
@@ -88,11 +94,18 @@ pub fn render(frame: &mut Frame, palette: &Palette, overlay: &mut AiOverlay) {
 
     let width = (area.width as f32 * 0.7).clamp(40.0, 80.0) as u16;
     let height = (area.height as f32 * 0.7).clamp(10.0, 28.0) as u16;
-    if area.width < width || area.height < height { return; }
+    if area.width < width || area.height < height {
+        return;
+    }
 
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     clear_rect(buf, rect);
 
@@ -120,7 +133,9 @@ pub fn render(frame: &mut Frame, palette: &Palette, overlay: &mut AiOverlay) {
     overlay.clamp_scroll(body_rect.width, body_rect.height);
 
     let body_style = match overlay.status {
-        OverlayStatus::Loading => Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        OverlayStatus::Loading => Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
         _ => Style::default().fg(palette.body),
     };
     let body = Paragraph::new(overlay.body.as_str())
@@ -131,9 +146,16 @@ pub fn render(frame: &mut Frame, palette: &Palette, overlay: &mut AiOverlay) {
 
     let hint = Line::from(Span::styled(
         "j/k scroll · Esc close",
-        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(palette.muted)
+            .add_modifier(Modifier::ITALIC),
     ));
-    let footer_rect = Rect { x: inner.x, y: footer_y, width: inner.width, height: 1 };
+    let footer_rect = Rect {
+        x: inner.x,
+        y: footer_y,
+        width: inner.width,
+        height: 1,
+    };
     Paragraph::new(hint).render(footer_rect, buf);
 }
 

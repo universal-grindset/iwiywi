@@ -23,20 +23,26 @@ _{prompt}_
 fn editor_command() -> Option<String> {
     for var in ["VISUAL", "EDITOR"] {
         if let Ok(v) = std::env::var(var) {
-            if !v.trim().is_empty() { return Some(v); }
+            if !v.trim().is_empty() {
+                return Some(v);
+            }
         }
     }
     Some("vi".to_string())
 }
 
 fn ensure_entry(path: &Path, prompt: Option<&str>) -> Result<()> {
-    if path.exists() { return Ok(()); }
+    if path.exists() {
+        return Ok(());
+    }
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let date = chrono::Local::now().format("%A, %B %-d, %Y").to_string();
     let prompt = prompt.unwrap_or(DEFAULT_PROMPT);
-    let body = TEMPLATE.replace("{date}", &date).replace("{prompt}", prompt);
+    let body = TEMPLATE
+        .replace("{date}", &date)
+        .replace("{prompt}", prompt);
     std::fs::write(path, body)?;
     Ok(())
 }

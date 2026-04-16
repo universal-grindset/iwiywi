@@ -11,8 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::fetch::ai::{post_chat, ChatOpts};
 
-const SYSTEM_PROMPT: &str =
-    "You write the single-line theme for today's AA meditation app. \
+const SYSTEM_PROMPT: &str = "You write the single-line theme for today's AA meditation app. \
      Twelve words maximum. Start with the literal word 'Today' followed by a colon. \
      Plain, grounded, actionable. No emoji, no quotes, no trailing period. \
      Example shape: 'Today: notice where willingness already lives.'";
@@ -27,7 +26,9 @@ pub async fn load_or_generate(
     let path = cache_path(cache_dir, today);
     if let Ok(cached) = std::fs::read_to_string(&path) {
         let trimmed = cached.trim().to_string();
-        if !trimmed.is_empty() { return Some(trimmed); }
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
     }
     match generate(client, config, today, step).await {
         Ok(line) => {
@@ -50,12 +51,7 @@ fn write_cache(path: &Path, line: &str) -> Result<()> {
     Ok(())
 }
 
-async fn generate(
-    client: &Client,
-    config: &Config,
-    today: NaiveDate,
-    step: u8,
-) -> Result<String> {
+async fn generate(client: &Client, config: &Config, today: NaiveDate, step: u8) -> Result<String> {
     let user = format!(
         "Today is {today}. The day's step-theme is Step {step}. \
          Produce the one-line theme per your instructions.",
@@ -79,7 +75,9 @@ mod tests {
         let dir = tempdir().unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 4, 15).unwrap();
         let path = cache_path(dir.path(), today);
-        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).unwrap(); }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
         std::fs::write(&path, "Today: quiet steps forward.").unwrap();
 
         // Use a bogus config; cache hit should short-circuit before any call.

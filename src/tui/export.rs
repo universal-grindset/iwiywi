@@ -12,8 +12,14 @@ pub fn write_current(mixer: &PulseMixer, exports_dir: PathBuf) -> Option<PathBuf
     let path = exports_dir.join(filename);
 
     let mut body = String::new();
-    body.push_str(&format!("# iwiywi export\n\n_{date}_\n\n", date = now.format("%A, %B %-d, %Y · %H:%M")));
-    body.push_str(&format!("_{n} items in current focus_\n\n---\n\n", n = mixer.len()));
+    body.push_str(&format!(
+        "# iwiywi export\n\n_{date}_\n\n",
+        date = now.format("%A, %B %-d, %Y · %H:%M")
+    ));
+    body.push_str(&format!(
+        "_{n} items in current focus_\n\n---\n\n",
+        n = mixer.len()
+    ));
     for item in mixer.all() {
         body.push_str(&format!("### {}\n\n", item.label));
         body.push_str(&format!("_{}_\n\n", item.kind.display_label()));
