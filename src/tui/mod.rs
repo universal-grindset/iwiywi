@@ -10,6 +10,7 @@ pub mod palette;
 pub mod pattern;
 pub mod status;
 pub mod text_size;
+pub mod weather;
 pub mod widgets;
 
 use anyhow::Result;
@@ -218,6 +219,8 @@ pub struct App {
     /// Vim-style `gg` double-tap detector. First `g` press stamps this;
     /// a second `g` within STEP_DOUBLE_TAP_MS jumps to the first item.
     pub last_g_press: Option<Instant>,
+    /// Ambient weather snapshot. Fetched once at startup via wttr.in.
+    pub weather: Option<weather::WeatherSnapshot>,
 }
 
 const TRANSITION_MS: u64 = 150;
@@ -906,6 +909,7 @@ pub async fn run(
     grapevine_html: Option<String>,
     reddit_json: Option<String>,
     cfg: Config,
+    weather: Option<weather::WeatherSnapshot>,
 ) -> Result<()> {
     let readings = read_readings()?;
 
@@ -1018,6 +1022,7 @@ pub async fn run(
         search_cursor: 0,
         transition_started: None,
         last_g_press: None,
+        weather,
     };
 
     // Spawn background AI tasks. Each runs as a tokio::spawn'd task on
@@ -1079,6 +1084,9 @@ pub async fn run(
                 let frame_area = f.area();
                 {
                     let buf = f.buffer_mut();
+                    status::draw_weather_anchor(
+                        buf, frame_area, &eff_palette, app.weather.as_ref(),
+                    );
                     status::draw_moon_anchor(
                         buf, frame_area, &eff_palette, app.sobriety_days,
                     );
@@ -1290,6 +1298,7 @@ mod tests {
             search_cursor: 0,
             transition_started: None,
             last_g_press: None,
+            weather: None,
         }
     }
 

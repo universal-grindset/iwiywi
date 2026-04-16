@@ -74,12 +74,13 @@ async fn main() -> Result<()> {
             // run them in parallel and move on. Bill / Community / Summary
             // are AI calls — defer them into tui::run so the TUI appears
             // immediately and the AI content streams in as it resolves.
-            let (grapevine_html, reddit_json) = tokio::join!(
+            let (grapevine_html, reddit_json, weather) = tokio::join!(
                 fetch_grapevine_html(),
                 fetch::reddit::fetch_community_json(),
+                tui::weather::fetch(),
             );
-            let _ = &cfg; // cfg is passed to tui::run for the background AI.
-            crate::tui::run(grapevine_html, reddit_json, cfg).await?;
+            let _ = &cfg;
+            crate::tui::run(grapevine_html, reddit_json, cfg, weather).await?;
         }
     }
     Ok(())

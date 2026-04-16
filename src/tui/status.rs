@@ -15,6 +15,7 @@ use ratatui::{
 use crate::pulse::{Focus, PulseMixer};
 use crate::tui::moon;
 use crate::tui::palette::Palette;
+use crate::tui::weather::WeatherSnapshot;
 
 pub struct StatusLine<'a> {
     pub mixer: &'a PulseMixer,
@@ -121,6 +122,27 @@ fn right_text(status: &StatusLine) -> String {
     status.sobriety_days.map_or(String::new(), |d| {
         if d < 0 { String::new() } else { format!("Day {d}") }
     })
+}
+
+/// Top-left ambient anchor: weather one-liner from wttr.in. Paired
+/// visually with the moon/sober anchor in the top-right. Renders only
+/// when wttr.in returned something and the viewport has room.
+pub fn draw_weather_anchor(
+    buf: &mut Buffer,
+    area: Rect,
+    palette: &Palette,
+    weather: Option<&WeatherSnapshot>,
+) {
+    let Some(w) = weather else { return; };
+    if area.width < 30 || area.height < 2 { return; }
+    let text_w = w.text.chars().count() as u16 + 2;
+    if area.width < text_w + 2 { return; }
+    let rect = Rect { x: area.x + 1, y: area.y, width: text_w, height: 1 };
+    Paragraph::new(Line::from(Span::styled(
+        w.text.clone(),
+        Style::default().fg(palette.muted).add_modifier(Modifier::ITALIC),
+    )))
+    .render(rect, buf);
 }
 
 /// Draw the ambient corner anchor: moon phase + optional `Day N` counter.
