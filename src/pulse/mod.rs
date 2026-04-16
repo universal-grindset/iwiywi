@@ -56,6 +56,30 @@ impl PulseKind {
             PulseKind::Community         => "From the rooms (paraphrased)",
         }
     }
+
+    /// Per-kind frame accent color (Frame / Corners / Rule patterns).
+    /// Gives a subtle visual cue to the source type while the palette
+    /// still drives body/accent. Chosen to harmonize with the default
+    /// dark palette; users with very bright palettes may want to stay
+    /// on the Drift/Wave/etc. patterns to avoid visual clash.
+    pub fn frame_tint(&self) -> ratatui::style::Color {
+        use ratatui::style::Color;
+        match self {
+            PulseKind::TodayReading      => Color::Rgb(0x88, 0xA8, 0xD0), // cool blue
+            PulseKind::HistoricalReading => Color::Rgb(0x78, 0x70, 0x80), // archival grey
+            PulseKind::BigBookQuote      => Color::Rgb(0xC4, 0x9A, 0x47), // warm gold
+            PulseKind::Prayer            => Color::Rgb(0x7E, 0x95, 0xBF), // dusty blue
+            PulseKind::StepText          => Color::Rgb(0x9C, 0x7A, 0xCC), // step purple
+            PulseKind::Principle         => Color::Rgb(0x8A, 0xA3, 0x73), // sage
+            PulseKind::Tradition         => Color::Rgb(0x7A, 0x9E, 0xA3), // teal
+            PulseKind::Concept           => Color::Rgb(0xA0, 0x7A, 0x5E), // sandstone
+            PulseKind::Slogan            => Color::Rgb(0xD9, 0x7F, 0x5A), // coral
+            PulseKind::Grapevine         => Color::Rgb(0x7C, 0xB2, 0x72), // magazine green
+            PulseKind::Favorite          => Color::Rgb(0xE6, 0xA1, 0xA1), // soft pink
+            PulseKind::BillReflection    => Color::Rgb(0x96, 0x73, 0xB3), // amethyst
+            PulseKind::Community         => Color::Rgb(0x6A, 0xAC, 0x9E), // seafoam
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

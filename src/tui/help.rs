@@ -41,6 +41,8 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("n / N", "next / previous (or match when searching)"),
         ("p", "previous item"),
         ("r", "random item"),
+        ("gg / G", "jump to first / last item"),
+        ("wheel", "prev/next (scrolls overlay when open)"),
         ("/", "search (Enter jumps to first match, Esc cancels)"),
         ("space", "pause / resume"),
         ("1–9 0 - =", "focus Step 1–12 · tap twice: AI meditation"),

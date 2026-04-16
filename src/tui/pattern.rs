@@ -95,19 +95,29 @@ pub fn from_env() -> Pattern {
     Pattern::parse(std::env::var("IWIYWI_PATTERN").ok().as_deref())
 }
 
-/// Draw the pattern into `area` using the palette's muted color.
-/// `text_rect` is the rect where the centered text will land — patterns can
-/// use it to position elements relative to the text.
-pub fn draw(buf: &mut Buffer, area: Rect, text_rect: Rect, palette: &Palette, pattern: Pattern) {
+/// Draw the pattern into `area`. `text_rect` is the rect where the
+/// centered text will land. `kind` is the current pulse item's source
+/// type — Frame/Corners/Rule use its frame_tint so the border color
+/// hints at the content source (Prayer=dusty blue, BigBook=warm gold,
+/// Step=purple, etc.). Other patterns ignore it and use palette.muted.
+pub fn draw(
+    buf: &mut Buffer,
+    area: Rect,
+    text_rect: Rect,
+    palette: &Palette,
+    pattern: Pattern,
+    kind: Option<crate::pulse::PulseKind>,
+) {
+    let tint = kind.map_or(palette.muted, |k| k.frame_tint());
     match pattern {
         // Animated patterns (drift/wave/snow/rain) draw directly from
         // `widgets::render_pulse` via the shared DriftState — not here.
         Pattern::None | Pattern::Drift | Pattern::Wave | Pattern::Snow | Pattern::Rain => {}
         Pattern::Dots     => draw_dots(buf, area, palette),
-        Pattern::Frame    => draw_frame(buf, text_rect, palette),
-        Pattern::Rule     => draw_rule(buf, text_rect, palette),
+        Pattern::Frame    => draw_frame(buf, text_rect, tint),
+        Pattern::Rule     => draw_rule(buf, text_rect, tint),
         Pattern::Grid     => draw_grid(buf, area, palette),
-        Pattern::Corners  => draw_corners(buf, text_rect, palette),
+        Pattern::Corners  => draw_corners(buf, text_rect, tint),
         Pattern::Dashes   => draw_dashes(buf, area, palette),
         Pattern::Vignette => draw_vignette(buf, area, palette),
         Pattern::Margin   => draw_margin(buf, area, palette),
@@ -141,7 +151,7 @@ fn pseudo_rand(seed: u32, n: usize) -> u32 {
     x
 }
 
-fn draw_frame(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
+fn draw_frame(buf: &mut Buffer, text_rect: Rect, tint: ratatui::style::Color) {
     if text_rect.width < 4 || text_rect.height < 3 { return; }
     let padded = Rect {
         x: text_rect.x.saturating_sub(2),
@@ -152,14 +162,14 @@ fn draw_frame(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(palette.muted));
+        .border_style(Style::default().fg(tint));
     ratatui::widgets::Widget::render(block, padded, buf);
 }
 
-fn draw_rule(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
+fn draw_rule(buf: &mut Buffer, text_rect: Rect, tint: ratatui::style::Color) {
     if text_rect.width < 4 { return; }
     let y = text_rect.y + 1; // just under the kind line
-    let style = Style::default().fg(palette.muted);
+    let style = Style::default().fg(tint);
     for x in text_rect.x..(text_rect.x + text_rect.width) {
         buf[(x, y)].set_symbol("─").set_style(style);
     }
@@ -185,14 +195,14 @@ fn draw_grid(buf: &mut Buffer, area: Rect, palette: &Palette) {
 
 /// L-bracket markers at the four corners of the centered text rect.
 /// Subtle frame cue without drawing the whole box.
-fn draw_corners(buf: &mut Buffer, text_rect: Rect, palette: &Palette) {
+fn draw_corners(buf: &mut Buffer, text_rect: Rect, tint: ratatui::style::Color) {
     if text_rect.width < 6 || text_rect.height < 4 { return; }
     // Pad out one cell so the brackets don't touch the text.
     let x0 = text_rect.x.saturating_sub(1);
     let y0 = text_rect.y.saturating_sub(1);
     let x1 = text_rect.x + text_rect.width;
     let y1 = text_rect.y + text_rect.height;
-    let style = Style::default().fg(palette.muted);
+    let style = Style::default().fg(tint);
     for (x, y, s) in [
         (x0, y0, "┌"), (x1, y0, "┐"),
         (x0, y1, "└"), (x1, y1, "┘"),

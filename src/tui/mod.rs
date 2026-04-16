@@ -163,6 +163,9 @@ pub struct App {
     /// rather than instant teleports. Per tui-design skill: view
     /// transitions are 100–200ms, never block user input.
     pub transition_started: Option<Instant>,
+    /// Vim-style `gg` double-tap detector. First `g` press stamps this;
+    /// a second `g` within STEP_DOUBLE_TAP_MS jumps to the first item.
+    pub last_g_press: Option<Instant>,
 }
 
 const TRANSITION_MS: u64 = 150;
@@ -488,19 +491,36 @@ impl App {
             if modifiers.contains(KeyModifiers::SHIFT) {
                 return;
             }
-            if let MouseEventKind::Down(MouseButton::Left) = kind {
-                // Only clicks reset the idle timer — mouse-move events
-                // would otherwise keep the UI awake forever.
-                self.last_input = Instant::now();
-                if self.help_open {
-                    self.help_open = false;
-                } else if self.ai_overlay.is_some() {
-                    self.close_overlay();
-                } else if self.menu_open {
-                    self.menu_open = false;
-                } else {
-                    self.copy_current();
+            match kind {
+                MouseEventKind::Down(MouseButton::Left) => {
+                    self.last_input = Instant::now();
+                    if self.help_open {
+                        self.help_open = false;
+                    } else if self.ai_overlay.is_some() {
+                        self.close_overlay();
+                    } else if self.menu_open {
+                        self.menu_open = false;
+                    } else {
+                        self.copy_current();
+                    }
                 }
+                MouseEventKind::ScrollUp => {
+                    self.last_input = Instant::now();
+                    if let Some(ov) = self.ai_overlay.as_mut() {
+                        ov.scroll_up();
+                    } else {
+                        self.prev();
+                    }
+                }
+                MouseEventKind::ScrollDown => {
+                    self.last_input = Instant::now();
+                    if let Some(ov) = self.ai_overlay.as_mut() {
+                        ov.scroll_down();
+                    } else {
+                        self.next();
+                    }
+                }
+                _ => {}
             }
             return;
         }
@@ -545,6 +565,8 @@ impl App {
             KeyCode::Char('m') => self.menu_open = true,
             KeyCode::Char('?') => self.help_open = true,
             KeyCode::Char('/') => self.enter_search(),
+            KeyCode::Char('g') => self.handle_g_key(),
+            KeyCode::Char('G') => self.jump_to_last(),
             KeyCode::Char('n') => self.next_or_match(),
             KeyCode::Char('N') => self.prev_or_match(),
             KeyCode::Char('p') => self.prev(),
@@ -632,6 +654,32 @@ impl App {
         if seed.is_empty() { return None; }
         let _ = write_cache_file(&cache_path, &seed);
         Some(seed)
+    }
+
+    /// Vim-style `gg` — double-tap within STEP_DOUBLE_TAP_MS jumps to the
+    /// first item in the mixer. Single `g` sets the timer and waits.
+    pub fn handle_g_key(&mut self) {
+        let now = Instant::now();
+        let is_double = matches!(
+            self.last_g_press,
+            Some(t) if now.duration_since(t).as_millis() < STEP_DOUBLE_TAP_MS
+        );
+        if is_double {
+            self.mixer.jump_to(0);
+            self.last_advance = Instant::now();
+            self.begin_transition();
+            self.last_g_press = None;
+        } else {
+            self.last_g_press = Some(now);
+        }
+    }
+
+    /// Vim-style `G` — single press jumps to the last item.
+    pub fn jump_to_last(&mut self) {
+        let last = self.mixer.len().saturating_sub(1);
+        self.mixer.jump_to(last);
+        self.last_advance = Instant::now();
+        self.begin_transition();
     }
 
     /// A digit key: first press focuses on the step; second press on the
@@ -905,6 +953,7 @@ pub async fn run(
         search_matches: Vec::new(),
         search_cursor: 0,
         transition_started: None,
+        last_g_press: None,
     };
 
     // Spawn background AI tasks. Each runs as a tokio::spawn'd task on
@@ -1125,6 +1174,7 @@ mod tests {
             search_matches: Vec::new(),
             search_cursor: 0,
             transition_started: None,
+            last_g_press: None,
         }
     }
 

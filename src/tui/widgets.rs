@@ -85,8 +85,9 @@ pub fn render_pulse(
     let text_rect = Rect { x, y, width, height: total_height };
 
     // Static patterns (none/dots/frame/rule) draw here. Drift is animated
-    // and needs live state; it draws below when present.
-    pattern::draw(buf, area, text_rect, palette, pattern);
+    // and needs live state; it draws below when present. Frame-family
+    // patterns tint by the current item's kind for a subtle source cue.
+    pattern::draw(buf, area, text_rect, palette, pattern, Some(item.kind));
     if pattern.is_animated() {
         if let Some(state) = drift_state {
             drift::draw(buf, area, state, palette);
