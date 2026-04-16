@@ -56,6 +56,58 @@ const JOURNAL_SEED_SYSTEM_PROMPT: &str =
      No moralizing, no platitudes. The question should surface a concrete moment \
      from the reader's day. Return only the question, no preamble.";
 
+/// Fuzzy subsequence scorer. Returns `Some(score)` if every char in
+/// `query` appears in `haystack` in order (case-insensitive), else
+/// `None`. Score rewards consecutive runs, word-boundary landings, and
+/// full-haystack prefix matches — the same intuition `fzf` uses, minus
+/// its bigger per-char state machine. Query size is bounded by the
+/// user's typing speed; haystacks here are one `PulseItem`'s
+/// label+body combined. Empty query returns `Some(0)` so the caller
+/// can special-case "no query = show everything."
+pub fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
+    if query.is_empty() { return Some(0); }
+    let hay: Vec<char> = haystack.to_lowercase().chars().collect();
+    let needle: Vec<char> = query.to_lowercase().chars().collect();
+    let mut hi = 0usize;
+    let mut qi = 0usize;
+    let mut score: i32 = 0;
+    let mut consecutive: i32 = 0;
+    let mut first_match: Option<usize> = None;
+    while hi < hay.len() && qi < needle.len() {
+        if hay[hi] == needle[qi] {
+            // Base hit + consecutive-run bonus.
+            consecutive += 1;
+            score += 10 + consecutive * 5;
+            // Word-boundary bonus: matching at the start of a word is
+            // much more meaningful than matching mid-word. Given higher
+            // weight than prefix position so "pr" at `Serenity Prayer`
+            // (word start) beats "pr" at `approach` (mid-word).
+            let at_boundary = hi == 0 || !hay[hi - 1].is_alphanumeric();
+            if at_boundary { score += 30; }
+            if first_match.is_none() {
+                first_match = Some(hi);
+            }
+            qi += 1;
+        } else {
+            // Small penalty per skipped char — long stretches between
+            // matches mean the subsequence is spread out (less likely
+            // to be what the user meant).
+            consecutive = 0;
+            score = score.saturating_sub(1);
+        }
+        hi += 1;
+    }
+    // Prefix-of-haystack bonus applied once, to the first match position.
+    // Rewards matches that start near the head of a label/title without
+    // crushing distant-but-still-clean subsequence matches.
+    if let Some(pos) = first_match {
+        if pos < 8 {
+            score += (8 - pos as i32) * 2;
+        }
+    }
+    if qi == needle.len() { Some(score) } else { None }
+}
+
 fn sha_hex(input: &str) -> String {
     use std::fmt::Write;
     let mut hasher = Sha256::new();
@@ -428,15 +480,27 @@ impl App {
 
     fn recompute_matches(&mut self) {
         self.search_matches.clear();
-        if self.search_query.trim().is_empty() { return; }
-        let q = self.search_query.to_lowercase();
-        for (i, item) in self.mixer.all().iter().enumerate() {
-            if item.label.to_lowercase().contains(&q)
-                || item.body.to_lowercase().contains(&q)
-            {
-                self.search_matches.push(i);
-            }
-        }
+        let q = self.search_query.trim();
+        if q.is_empty() { return; }
+        // Fuzzy subsequence scoring: every query char must appear in the
+        // haystack in order. Bonuses for consecutive runs and word-
+        // boundary landings; the sort surfaces the strongest match first
+        // so `/` + Enter lands on what the user meant, not the first
+        // textual hit per document order.
+        let mut scored: Vec<(i32, usize)> = self
+            .mixer
+            .all()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, item)| {
+                let hay = format!("{} {}", item.label, item.body);
+                fuzzy_score(&hay, q).map(|s| (s, i))
+            })
+            .collect();
+        // Descending by score. Stable sort preserves document order among
+        // ties so later logic stays deterministic.
+        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        self.search_matches = scored.into_iter().map(|(_, i)| i).collect();
     }
 
     /// Next key-press while in search mode: append / delete / submit.
@@ -1112,6 +1176,57 @@ pub async fn run(
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod fuzzy_tests {
+    use super::fuzzy_score;
+
+    #[test]
+    fn empty_query_scores_zero() {
+        assert_eq!(fuzzy_score("anything", ""), Some(0));
+    }
+
+    #[test]
+    fn full_substring_matches() {
+        assert!(fuzzy_score("Serenity Prayer", "prayer").is_some());
+    }
+
+    #[test]
+    fn subsequence_without_adjacent_matches() {
+        // "srpr" in "Serenity Prayer": S(0) r(2) P(9) r(10). Valid subseq.
+        assert!(fuzzy_score("Serenity Prayer", "srpr").is_some());
+    }
+
+    #[test]
+    fn no_match_when_chars_missing() {
+        assert_eq!(fuzzy_score("Serenity Prayer", "zxq"), None);
+    }
+
+    #[test]
+    fn case_insensitive() {
+        assert!(fuzzy_score("SERENITY", "srn").is_some());
+        assert!(fuzzy_score("serenity", "SRN").is_some());
+    }
+
+    #[test]
+    fn word_boundary_beats_mid_word() {
+        // "pr" at start of word should score higher than "pr" inside one.
+        let boundary = fuzzy_score("Serenity Prayer", "pr").unwrap();
+        let mid_word = fuzzy_score("approach", "pr").unwrap();
+        assert!(boundary > mid_word,
+            "boundary score {boundary} should beat mid-word {mid_word}");
+    }
+
+    #[test]
+    fn prefix_match_beats_tail_match() {
+        // First-position match gets the prefix bonus; same query landing
+        // much later in the string shouldn't.
+        let prefix = fuzzy_score("surrender fully", "surr").unwrap();
+        let tail   = fuzzy_score("a long sentence about surrender", "surr").unwrap();
+        assert!(prefix > tail,
+            "prefix {prefix} should beat tail {tail}");
+    }
 }
 
 #[cfg(test)]
