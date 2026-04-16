@@ -676,7 +676,16 @@ impl App {
             KeyCode::Char('0') => self.handle_step_key(10),
             KeyCode::Char('-') => self.handle_step_key(11),
             KeyCode::Char('=') => self.handle_step_key(12),
-            KeyCode::Char('*') => self.clear_step_focus(),
+            KeyCode::Char('*') | KeyCode::Esc => {
+                // Clear search matches + step focus. Esc in normal mode
+                // is the universal "dismiss" per the tui-design skill.
+                self.clear_step_focus();
+                if !self.search_matches.is_empty() {
+                    self.search_matches.clear();
+                    self.search_query.clear();
+                    self.search_cursor = 0;
+                }
+            }
             _ => {}
         }
     }
@@ -1076,9 +1085,17 @@ pub async fn run(
         terminal.draw(|f| {
             let eff_pattern = if app.showcase { pattern::Pattern::None } else { app.pattern };
             let eff_drift = if app.showcase { None } else { app.drift.as_ref() };
+            // Pass the search query so render_pulse can highlight matched
+            // chars in the body. Only active when matches exist (submitted
+            // search with results); not during live-typing.
+            let hl_query = if !app.search_matches.is_empty() && !app.search_query.is_empty() {
+                Some(app.search_query.as_str())
+            } else {
+                None
+            };
             widgets::render_pulse(
                 f, app.mixer.current(), &eff_palette,
-                eff_pattern, eff_drift, app.text_size, app.showcase,
+                eff_pattern, eff_drift, app.text_size, app.showcase, hl_query,
             );
             if !app.showcase {
                 let frame_area = f.area();

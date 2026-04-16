@@ -34,6 +34,7 @@ fn render_too_small(buf: &mut Buffer, area: ratatui::layout::Rect, palette: &Pal
 pub const MIN_WIDTH: u16 = 60;
 pub const MIN_HEIGHT: u16 = 15;
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_pulse(
     frame: &mut Frame,
     item: Option<&PulseItem>,
@@ -42,6 +43,7 @@ pub fn render_pulse(
     drift_state: Option<&DriftState>,
     text_size: TextSize,
     showcase: bool,
+    search_query: Option<&str>,
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
@@ -107,12 +109,67 @@ pub fn render_pulse(
     } else {
         text_size.body_modifier()
     };
-    let body = Line::from(Span::styled(
-        item.body.clone(),
-        Style::default().fg(palette.body).add_modifier(body_modifier),
-    ));
 
-    Paragraph::new(vec![label, kind, Line::from(""), body])
+    // When a search query is active AND the current item matched, highlight
+    // the fuzzy-matched chars in the body with the accent color so the user
+    // sees *why* this item was surfaced — the tui-design skill's
+    // "Highlight matched characters in results" guidance.
+    let body_line = match search_query.filter(|q| !q.is_empty()) {
+        Some(q) => highlight_fuzzy(&item.body, q, palette, body_modifier),
+        None => Line::from(Span::styled(
+            item.body.clone(),
+            Style::default().fg(palette.body).add_modifier(body_modifier),
+        )),
+    };
+
+    Paragraph::new(vec![label, kind, Line::from(""), body_line])
         .wrap(Wrap { trim: false })
         .render(text_rect, buf);
+}
+
+/// Build a `Line` with accent-colored spans for chars that match the
+/// fuzzy query and default-colored spans for everything else. Walks the
+/// body and query in order (same subsequence logic as `fuzzy_score`).
+fn highlight_fuzzy<'a>(
+    body: &str,
+    query: &str,
+    palette: &Palette,
+    modifier: Modifier,
+) -> Line<'a> {
+    let body_lower: Vec<char> = body.to_lowercase().chars().collect();
+    let needle: Vec<char> = query.to_lowercase().chars().collect();
+    let body_chars: Vec<char> = body.chars().collect();
+
+    // Find the matched positions by replaying the subsequence walk.
+    let mut matched = vec![false; body_chars.len()];
+    let mut qi = 0usize;
+    for (hi, c) in body_lower.iter().enumerate() {
+        if qi < needle.len() && *c == needle[qi] {
+            matched[hi] = true;
+            qi += 1;
+        }
+    }
+
+    // Chunk into runs of same-highlight and emit one Span per run.
+    let normal = Style::default().fg(palette.body).add_modifier(modifier);
+    let accent = Style::default()
+        .fg(palette.accent)
+        .add_modifier(modifier | Modifier::UNDERLINED);
+    let mut spans: Vec<Span<'a>> = Vec::new();
+    let mut run = String::new();
+    let mut run_highlight = false;
+    for (i, ch) in body_chars.into_iter().enumerate() {
+        let is_match = matched[i];
+        if is_match != run_highlight && !run.is_empty() {
+            let style = if run_highlight { accent } else { normal };
+            spans.push(Span::styled(std::mem::take(&mut run), style));
+        }
+        run_highlight = is_match;
+        run.push(ch);
+    }
+    if !run.is_empty() {
+        let style = if run_highlight { accent } else { normal };
+        spans.push(Span::styled(run, style));
+    }
+    Line::from(spans)
 }
