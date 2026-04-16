@@ -1,0 +1,10 @@
+{
+  "name": "iwiywi — daily AA readings",
+  "short_name": "iwiywi",
+  "description": "It Works If You Work It — daily AA readings, prayers, Steps, and AI-powered reflections.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111418",
+  "theme_color": "#111418",
+  "icons": []
+}

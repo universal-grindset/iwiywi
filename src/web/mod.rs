@@ -31,6 +31,7 @@ use crate::storage::read_readings;
 const INDEX_HTML: &str = include_str!("index.html");
 const PULSE_CSS: &str = include_str!("pulse.css");
 const PULSE_JS: &str = include_str!("pulse.js");
+const MANIFEST_JSON: &str = include_str!("manifest.json");
 
 /// Snapshot of everything the browser needs for one pulse session. Built
 /// fresh on each `/api/items` hit so today's readings (written by the 6am
@@ -58,6 +59,7 @@ pub async fn run(bind: &str, port: u16, grapevine_html: Option<String>) -> Resul
         .route("/", get(index))
         .route("/pulse.css", get(css))
         .route("/pulse.js", get(js))
+        .route("/manifest.json", get(manifest))
         .route("/api/items", get(items))
         .route("/healthz", get(healthz))
         .with_state(state);
@@ -93,6 +95,13 @@ async fn js() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
         PULSE_JS,
+    )
+}
+
+async fn manifest() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/manifest+json; charset=utf-8")],
+        MANIFEST_JSON,
     )
 }
 

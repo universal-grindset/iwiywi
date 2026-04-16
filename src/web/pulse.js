@@ -14,10 +14,14 @@ const state = {
   order: "random",
   focus: "all",
   step: "",
-  pulseSecs: 20,
+  pulseSecs: 45,
   paused: false,
   date: null,
   timer: null,
+  searching: false,
+  searchMatches: [],
+  searchCursor: 0,
+  favorites: JSON.parse(localStorage.getItem("iwiywi_favorites") || "[]"),
 };
 
 // Maps source.name() from the Rust side to the Focus variants that admit it.
@@ -183,6 +187,9 @@ function wireControls() {
       else if (act === "prev") advance(-1);
       else if (act === "random") randomJump();
       else if (act === "pause") togglePause();
+      else if (act === "fav") toggleFavorite();
+      else if (act === "copy") copyCurrentItem();
+      else if (act === "search") openSearch();
       else if (act === "menu") document.getElementById("menu").showModal();
     });
   });
@@ -221,6 +228,10 @@ function wireKeys() {
       case "-": setFocusStep(11); break;
       case "=": setFocusStep(12); break;
       case "*": clearFocusStep(); break;
+      case "c": copyCurrentItem(); break;
+      case "f": toggleFavorite(); break;
+      case "/": e.preventDefault(); openSearch(); break;
+      case "Escape": closeSearch(); state.searchMatches = []; break;
       default: return;
     }
   });
@@ -257,6 +268,117 @@ function startDayWatcher() {
     } catch { /* offline — ignore, try again later */ }
   }, 10 * 60 * 1000);
 }
+
+// ---------- Fuzzy search (port of Rust fuzzy_score) ----------
+function fuzzyScore(haystack, query) {
+  if (!query) return 0;
+  const hay = haystack.toLowerCase();
+  const needle = query.toLowerCase();
+  let hi = 0, qi = 0, score = 0, consecutive = 0, firstMatch = -1;
+  while (hi < hay.length && qi < needle.length) {
+    if (hay[hi] === needle[qi]) {
+      consecutive++;
+      score += 10 + consecutive * 5;
+      if (hi === 0 || !/[a-z0-9]/.test(hay[hi - 1])) score += 30;
+      if (firstMatch < 0) firstMatch = hi;
+      qi++;
+    } else {
+      consecutive = 0;
+      score--;
+    }
+    hi++;
+  }
+  if (qi < needle.length) return null;
+  if (firstMatch >= 0 && firstMatch < 8) score += (8 - firstMatch) * 2;
+  return score;
+}
+
+function openSearch() {
+  state.searching = true;
+  const bar = document.getElementById("search-bar");
+  const input = document.getElementById("search-input");
+  bar.hidden = false;
+  input.value = "";
+  input.focus();
+}
+
+function closeSearch() {
+  state.searching = false;
+  document.getElementById("search-bar").hidden = true;
+  document.getElementById("search-count").textContent = "";
+}
+
+function runSearch(query) {
+  if (!query.trim()) { state.searchMatches = []; return; }
+  const scored = state.filtered
+    .map((item, i) => ({ s: fuzzyScore(item.label + " " + item.body, query), i }))
+    .filter(x => x.s !== null)
+    .sort((a, b) => b.s - a.s);
+  state.searchMatches = scored.map(x => x.i);
+  state.searchCursor = 0;
+  document.getElementById("search-count").textContent =
+    state.searchMatches.length + " match" + (state.searchMatches.length === 1 ? "" : "es");
+}
+
+function jumpToMatch(delta) {
+  if (!state.searchMatches.length) return;
+  state.searchCursor = (state.searchCursor + delta + state.searchMatches.length) % state.searchMatches.length;
+  state.cursor = state.searchMatches[state.searchCursor];
+  render();
+}
+
+// ---------- Favorites ----------
+function isFavorite(item) {
+  return state.favorites.some(f => f.label === item.label && f.body === item.body);
+}
+
+function toggleFavorite() {
+  const item = state.filtered[state.cursor];
+  if (!item) return;
+  const idx = state.favorites.findIndex(f => f.label === item.label && f.body === item.body);
+  if (idx >= 0) {
+    state.favorites.splice(idx, 1);
+    toast("removed");
+  } else {
+    state.favorites.push({ label: item.label, body: item.body });
+    toast("saved");
+  }
+  localStorage.setItem("iwiywi_favorites", JSON.stringify(state.favorites));
+  updateFavBtn();
+}
+
+function updateFavBtn() {
+  const item = state.filtered[state.cursor];
+  const btn = document.getElementById("fav-btn");
+  if (btn) btn.textContent = item && isFavorite(item) ? "\u2605" : "\u2606";
+}
+
+// ---------- Copy ----------
+function copyCurrentItem() {
+  const item = state.filtered[state.cursor];
+  if (!item) return;
+  const text = item.label + "\n\n" + item.body + "\n";
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => toast("copied")).catch(() => toast("copy failed"));
+  } else {
+    toast("clipboard not available");
+  }
+}
+
+// Wire search input
+document.getElementById("search-input").addEventListener("input", (e) => {
+  runSearch(e.target.value);
+  if (state.searchMatches.length) {
+    state.cursor = state.searchMatches[0];
+    render();
+  }
+});
+document.getElementById("search-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); closeSearch(); }
+  if (e.key === "Escape") { e.preventDefault(); closeSearch(); state.searchMatches = []; }
+  if (e.key === "ArrowDown") { e.preventDefault(); jumpToMatch(1); }
+  if (e.key === "ArrowUp") { e.preventDefault(); jumpToMatch(-1); }
+});
 
 wireControls();
 wireKeys();

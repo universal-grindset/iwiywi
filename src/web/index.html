@@ -8,6 +8,9 @@
     <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" />
     <title>iwiywi — daily AA readings</title>
     <link rel="stylesheet" href="/pulse.css" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>
   <body>
     <main id="pulse" aria-live="polite">
@@ -18,11 +21,18 @@
         <span id="toast" class="toast" hidden></span>
       </footer>
     </main>
+    <div id="search-bar" class="search-bar" hidden>
+      <input id="search-input" type="text" placeholder="search…" autocomplete="off" />
+      <span id="search-count" class="search-count"></span>
+    </div>
     <nav class="controls" aria-label="pulse controls">
       <button data-act="prev" title="previous (p)">‹</button>
       <button data-act="pause" id="pause-btn" title="pause / play (space)">⏸</button>
       <button data-act="random" title="random (r)">⤮</button>
       <button data-act="next" title="next (n)">›</button>
+      <button data-act="fav" id="fav-btn" title="favorite (f)">☆</button>
+      <button data-act="copy" title="copy (c)">⎘</button>
+      <button data-act="search" title="search (/)">⌕</button>
       <button data-act="menu" id="menu-btn" title="menu (m)">≡</button>
     </nav>
     <dialog id="menu">
