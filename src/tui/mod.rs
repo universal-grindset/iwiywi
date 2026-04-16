@@ -281,6 +281,26 @@ impl App {
         Some(0.4 + 0.6 * alpha)
     }
 
+    /// Cycle the pulse timer up (+1) or down (-1) through the ring, same
+    /// as the menu row but accessible via `[`/`]` without opening the menu.
+    /// Shows a toast with the new value so the change is visible.
+    pub fn cycle_pulse_secs(&mut self, delta: i32) {
+        let current = self.pulse_secs.map_or(0u64, |d| d.as_secs());
+        let next = pulse::cycle(&menu::PULSE_SECS_RING, current, delta);
+        self.pulse_secs = if next == 0 {
+            None
+        } else {
+            Some(Duration::from_secs(next))
+        };
+        self.last_advance = Instant::now();
+        let label = if next == 0 {
+            "pulse: manual".to_string()
+        } else {
+            format!("pulse: {next}s")
+        };
+        self.set_toast(&label, 1500);
+    }
+
     /// Context-sensitive hints for the status bar's right slot. Changes
     /// per mode so the user always sees what's actionable right now.
     pub fn status_hints(&self) -> &'static str {
@@ -676,6 +696,8 @@ impl App {
             KeyCode::Char('0') => self.handle_step_key(10),
             KeyCode::Char('-') => self.handle_step_key(11),
             KeyCode::Char('=') => self.handle_step_key(12),
+            KeyCode::Char('[') => self.cycle_pulse_secs(-1),
+            KeyCode::Char(']') => self.cycle_pulse_secs(1),
             KeyCode::Char('*') | KeyCode::Esc => {
                 // Clear search matches + step focus. Esc in normal mode
                 // is the universal "dismiss" per the tui-design skill.

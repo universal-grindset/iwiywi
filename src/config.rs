@@ -62,7 +62,7 @@ pub fn load_env() -> Result<()> {
     Ok(())
 }
 
-const DEFAULT_PULSE_SECS: u64 = 20;
+const DEFAULT_PULSE_SECS: u64 = 45;
 
 /// Parse `IWIYWI_PULSE_SECS`. Returns `Some(Duration)` for auto-advance,
 /// `None` for manual-only. Default 20s when unset; 0 → None.
@@ -138,8 +138,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_pulse_secs_defaults_to_twenty_when_none() {
-        assert_eq!(parse_pulse_secs(None), Some(std::time::Duration::from_secs(20)));
+    fn parse_pulse_secs_defaults_when_none() {
+        assert_eq!(parse_pulse_secs(None), Some(std::time::Duration::from_secs(45)));
     }
 
     #[test]
@@ -154,6 +154,6 @@ mod tests {
 
     #[test]
     fn parse_pulse_secs_falls_back_on_garbage() {
-        assert_eq!(parse_pulse_secs(Some("xx")), Some(std::time::Duration::from_secs(20)));
+        assert_eq!(parse_pulse_secs(Some("xx")), Some(std::time::Duration::from_secs(45)));
     }
 }

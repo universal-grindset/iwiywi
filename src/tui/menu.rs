@@ -56,8 +56,8 @@ impl Row {
     }
 }
 
-/// Seven slots for `Pulse secs`: 0 (manual), 5, 10, 15, 20, 30, 60.
-pub const PULSE_SECS_RING: [u64; 7] = [0, 5, 10, 15, 20, 30, 60];
+/// Pulse-secs ring: 0 (manual), then increasing intervals up to 5 min.
+pub const PULSE_SECS_RING: [u64; 11] = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 300];
 
 pub fn render(
     frame: &mut Frame,

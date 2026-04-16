@@ -15,8 +15,8 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    let width: u16 = 48;
-    let height: u16 = 20;
+    let width: u16 = 52;
+    let height: u16 = 22;
     if area.width < width || area.height < height { return; }
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -44,6 +44,7 @@ pub fn render(frame: &mut Frame, palette: &Palette) {
         ("gg / G", "jump to first / last item"),
         ("wheel", "prev/next (scrolls overlay when open)"),
         ("/", "search (Enter jumps to first match, Esc cancels)"),
+        ("[ / ]", "slower / faster pulse timer"),
         ("space", "pause / resume"),
         ("1–9 0 - =", "focus Step 1–12 · tap twice: AI meditation"),
         ("*", "clear step focus"),
